@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { messageOf, type ApiClient, type Dataset } from './api';
+import { Link, useSearchParams } from 'react-router-dom';
+import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
 import { contexts, strategies, type Evidence } from './answers';
 import { EvidenceCard, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
-import { useResource } from './resources';
+import { useResource, type DocumentRow } from './resources';
 
 type Result = {
   hits: Evidence[]; evidence: Evidence[]; evidenceTokens: number; retrievalMs: number;
@@ -31,7 +32,16 @@ function StrategyFields({name, title, rerank}: {name: string; title: string; rer
 }
 
 export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean}) {
+  const [params, setParams] = useSearchParams();
   const datasets = useResource<Dataset[]>(api, '/api/datasets');
+  const requestedDataset = params.get('datasetId');
+  const datasetId = (requestedDataset ?? datasets.data?.[0]?.datasetId) || '';
+  const datasetAvailable = !!datasets.data?.some(dataset => dataset.datasetId === datasetId);
+  const docId = params.get('docId') ?? '';
+  const documents = useResource<DocumentRow[]>(api, datasetAvailable
+    ? withQuery('/api/documents', {datasetId}) : undefined);
+  const documentAvailable = !docId || !!documents.data?.some(document => document.docId === docId);
+  const [lastScope, setLastScope] = useState<{datasetId: string; docId?: string}>();
   const [results, setResults] = useState<Comparison[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -40,13 +50,14 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
   async function compare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const datasetId = String(form.get('datasetId') ?? '');
     const question = String(form.get('question') ?? '').trim();
     const topK = Number(form.get('topK')), candidateK = Number(form.get('candidateK'));
-    if (!datasetId || !question) return;
+    if (!datasetAvailable || !documentAvailable || !question) return;
     if (topK > candidateK) return setError('候选池须不小于最终 Top K。');
     setError(''); setResults([]); setBusy(true);
-    const request = {datasetId, question, topK, candidateK, evidenceBudget: Number(form.get('budget'))};
+    const scope = {datasetId, docId: docId || undefined};
+    setLastScope(scope);
+    const request = {...scope, question, topK, candidateK, evidenceBudget: Number(form.get('budget'))};
     try {
       for (const [name, label] of [['baseline', '基线'], ['comparison', '对照']]) {
         const strategy = String(form.get(name + '-strategy'));
@@ -65,9 +76,15 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
       <p className="muted">比较同一知识库、问题和候选预算下的命中与证据。</p></div></header>
     <form className="panel stack" onSubmit={compare}>
       <div className="form-grid">
-        <label>知识库<select name="datasetId" required>
-          {!datasets.data?.length && <option value="">请选择知识库</option>}
+        <label>知识库<select value={datasetId} onChange={event => setParams({datasetId: event.target.value})} required>
+          {!datasetAvailable && <option value={datasetId}>{datasetId && datasets.data ? '知识库不可用' : '请选择知识库'}</option>}
           {datasets.data?.map(item => <option value={item.datasetId} key={item.datasetId}>{item.name}</option>)}
+        </select></label>
+        <label>文档<select value={docId} disabled={!datasetAvailable || documents.loading}
+          onChange={event => setParams(event.target.value ? {datasetId, docId: event.target.value} : {datasetId})}>
+          <option value="">全部文档</option>
+          {!documentAvailable && <option value={docId}>{documents.loading ? '正在读取文档…' : '文档不可用'}</option>}
+          {documents.data?.map(document => <option value={document.docId} key={document.docId}>{document.title}</option>)}
         </select></label>
         <label>检索问题<input name="question" placeholder="输入要对照的问题" maxLength={2000} required /></label>
       </div>
@@ -80,10 +97,14 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
         <StrategyFields name="baseline" title="基线" rerank={rerank} />
         <StrategyFields name="comparison" title="对照" rerank={rerank} />
       </div>
-      {(error || datasets.error) && <p className="error" role="alert">{error || datasets.error}</p>}
-      <div className="actions"><button className="primary" disabled={busy || !datasets.data?.length}>
+      {(error || datasets.error || documents.error) && <p className="error" role="alert">
+        {error || datasets.error || documents.error}</p>}
+      <div className="actions"><button className="primary" disabled={busy || !datasetAvailable || !documentAvailable}>
         {busy ? '正在运行…' : '运行对照'}</button></div>
     </form>
+    {lastScope && results.length > 0 && <div className="actions">
+      <Link className="button" to={withQuery('/chat', lastScope)}>按此范围提问</Link>
+    </div>}
     <div className="comparison-grid comparison-results" aria-live="polite">
       {results.map(({label, strategy, rerank, result}) => <article key={label} className="panel">
         <h2>{label} · {strategies[strategy]}{rerank && ' + 精排'}</h2>
