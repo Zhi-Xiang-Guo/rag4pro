@@ -8,3 +8,6 @@ Java port and does not claim output equivalence or affiliation.
 Runtime libraries include Apache Lucene (Apache Software Foundation) and
 Jackson (FasterXML). Their license and notice resources are included in the
 bundled dependency archive; consult upstream projects for full attributions.
+
+Workspace frontend includes adapted source from Nageoffer Ragent (Apache License 2.0).
+https://github.com/nageoffer/ragent

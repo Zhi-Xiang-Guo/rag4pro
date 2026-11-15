@@ -162,8 +162,17 @@ public final class StandardServer implements AutoCloseable {
     }
 
     private boolean servePage(HttpExchange exchange, String path) throws IOException {
-        String resource = switch (path) {
-            case "/" -> "/workspace/index.html";
+        if (path.matches("/app-assets/assets/[A-Za-z0-9_.-]+")) {
+            return staticResource(exchange, "/react-workspace/" + path.substring("/app-assets/".length()),
+                    path.endsWith(".css") ? "text/css; charset=utf-8"
+                            : "text/javascript; charset=utf-8");
+        }
+        boolean workspace = path.equals("/") || path.equals("/chat") || path.startsWith("/chat/")
+                || path.equals("/knowledge") || path.startsWith("/knowledge/") || path.equals("/retrieve");
+        if (workspace && staticResource(exchange, "/react-workspace/index.html", "text/html; charset=utf-8"))
+            return true;
+        String resource = workspace ? "/workspace/index.html" : switch (path) {
+            case "/workspace-legacy" -> "/workspace/index.html";
             case "/workspace.css" -> "/workspace/style.css";
             case "/workspace.js" -> "/workspace/app.js";
             case "/demo" -> "/demo/index.html";
@@ -178,10 +187,15 @@ public final class StandardServer implements AutoCloseable {
             case "/demo.js", "/workspace.js" -> "text/javascript; charset=utf-8";
             default -> "text/html; charset=utf-8";
         };
-        try (var page = Objects.requireNonNull(getClass().getResourceAsStream(resource))) {
+        return staticResource(exchange, resource, contentType);
+    }
+
+    private boolean staticResource(HttpExchange exchange, String resource, String contentType) throws IOException {
+        try (var page = getClass().getResourceAsStream(resource)) {
+            if (page == null) return false;
             send(exchange, 200, contentType, page.readAllBytes());
+            return true;
         }
-        return true;
     }
 
     private String safeMessage(Exception error) {

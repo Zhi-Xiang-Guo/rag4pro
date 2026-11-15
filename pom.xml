@@ -55,6 +55,10 @@
     </dependencies>
     <build>
         <finalName>evidence-rag-java</finalName>
+        <resources>
+            <resource><directory>src/main/resources</directory></resource>
+            <resource><directory>frontend/dist</directory><targetPath>react-workspace</targetPath></resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

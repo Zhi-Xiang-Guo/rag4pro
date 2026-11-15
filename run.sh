@@ -13,6 +13,8 @@ if [[ -n "${JAVA_HOME:-}" ]]; then export PATH="$JAVA_HOME/bin:$PATH"; fi
 bash scripts/native-build.sh
 bash scripts/jsonrepair-build.sh
 docker compose up -d --wait elasticsearch
+npm --prefix frontend ci --no-audit
+npm --prefix frontend run build
 mvn -q package
 export EVIDENCE_RAG_ES_URL="${EVIDENCE_RAG_ES_URL:-http://127.0.0.1:${EVIDENCE_RAG_ES_PORT:-19200}}"
 export EVIDENCE_RAG_PORT="${EVIDENCE_RAG_PORT:-${EVIDENCE_RAG_HTTP_PORT:-18080}}"

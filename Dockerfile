@@ -1,3 +1,10 @@
+FROM node:22-bookworm-slim AS workspace
+WORKDIR /web
+COPY frontend/package*.json ./
+RUN npm ci --no-audit
+COPY frontend ./
+RUN npm run build
+
 FROM golang:1.27.3-trixie AS jsonrepair
 WORKDIR /src
 COPY native/jsonrepair/ ./
@@ -15,6 +22,7 @@ COPY --from=jsonrepair /ragflow-jsonrepair /build/native/build/ragflow-jsonrepai
 COPY native/resources native/resources
 COPY pom.xml ./
 COPY src ./src
+COPY --from=workspace /web/dist /build/frontend/dist
 RUN --mount=type=cache,target=/root/.m2 MAVEN_OPTS="-Xmx256m" mvn -B -q -DargLine=-Xmx768m package && java -Xmx768m -jar target/evidence-rag-java.jar --check-runtime
 
 # The C++ analyzer is linked against the build image's glibc and libstdc++.
