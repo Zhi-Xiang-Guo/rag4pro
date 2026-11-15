@@ -3,7 +3,7 @@ import { messageOf, withQuery, type ApiClient } from './api';
 
 export type DocumentRow = {
   datasetId: string; docId: string; title: string; chunkCount: number;
-  sourceRevision?: string; sourceName?: string; sourceFormat?: string;
+  sourceRevision?: string; sourceSha256?: string; sourceName?: string; sourceFormat?: string;
   chunkStrategy?: string; chunkTokenSize?: number; overlapPercent?: number;
 };
 export type JobStatus = 'QUEUED' | 'PARSING' | 'INDEXING' | 'READY' | 'FAILED';

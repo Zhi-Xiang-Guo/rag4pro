@@ -124,6 +124,7 @@ function DocumentEditor({api, dataset, document, source, close, done}: {
       const options = chunkOptions(form);
       await api.request(withQuery('/api/ingestion', {
         datasetId, docId: document?.docId, filename: name, title: title || name,
+        expectedVersion: document ? document.sourceRevision ?? document.sourceSha256 ?? '' : undefined,
         chunkStrategy: options.chunkStrategy, chunkTokenSize: String(options.chunkTokenSize),
         overlapPercent: String(options.overlapPercent),
       }), {method: 'POST', body: bytes, headers: {'Content-Type': 'application/octet-stream'}});
@@ -273,7 +274,7 @@ function DocumentDetail({api}: {api: ApiClient}) {
   const {datasetId = '', docId = ''} = useParams();
   const navigate = useNavigate();
   const [refresh, setRefresh] = useState(0);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<DocumentRow>();
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'chunks' | 'source'>('chunks');
   const [selected, setSelected] = useState('');
@@ -282,7 +283,9 @@ function DocumentDetail({api}: {api: ApiClient}) {
   const job = records.jobs.find(row => row.docId === docId);
   const latest = document?.sourceRevision;
   const pointer: SourcePointer = {datasetId, docId, revision: latest};
-  const source = useResource<SourceVersion>(api, editing && latest ? sourceUrl(pointer) : undefined);
+  const source = useResource<SourceVersion>(api, editing?.sourceRevision
+    ? sourceUrl({datasetId: editing.datasetId, docId: editing.docId, revision: editing.sourceRevision})
+    : undefined);
   const chunks = useResource<IndexChunk[]>(api, document ? withQuery('/api/chunks', {
     datasetId, docId, context: 'true', revision: latest,
   }) : undefined, refresh);
@@ -319,7 +322,7 @@ function DocumentDetail({api}: {api: ApiClient}) {
       <div><h1>{document?.title ?? job?.title ?? docId}</h1>{(document || job) && <StatusChip document={document} job={job} />}</div>
       <div className="actions">
         {document && <Link to={withQuery('/chat', {datasetId, docId})} className="button">就此文档提问</Link>}
-        {editorDocument && <button className="primary" disabled={isPending(job)} onClick={() => setEditing(true)}>
+        {editorDocument && <button className="primary" disabled={isPending(job)} onClick={() => setEditing(editorDocument)}>
           {latest ? '修订与重建' : '上传原件'}</button>}
         {document && <button disabled={isPending(job)} onClick={() => void remove()}>移除文档</button>}
       </div>
@@ -361,10 +364,10 @@ function DocumentDetail({api}: {api: ApiClient}) {
       </div>}
     </>}
     </>}
-    {editing && editorDocument && (source.loading
-      ? <Modal title="读取原件" onClose={() => setEditing(false)}><p>正在读取…</p></Modal>
-      : <DocumentEditor key={latest ?? docId} api={api} document={editorDocument} source={source.data}
-        close={() => setEditing(false)} done={() => { setEditing(false); setRefresh(value => value + 1); }} />)}
+    {editing && (source.loading
+      ? <Modal title="读取原件" onClose={() => setEditing(undefined)}><p>正在读取…</p></Modal>
+      : <DocumentEditor api={api} document={editing} source={source.data}
+        close={() => setEditing(undefined)} done={() => { setEditing(undefined); setRefresh(value => value + 1); }} />)}
   </section>;
 }
 

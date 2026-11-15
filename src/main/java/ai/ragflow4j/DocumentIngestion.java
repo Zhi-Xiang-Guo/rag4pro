@@ -76,6 +76,9 @@ final class DocumentIngestion implements AutoCloseable {
             throw new IllegalArgumentException("文档 ID 超出允许范围");
         requireCapacity(dataset, docId);
         var document = corpus.document(dataset, docId);
+        String version = CorpusService.documentVersion(document);
+        if (query.containsKey("expectedVersion") && !version.equals(query.get("expectedVersion")))
+            throw new Conflict("文档已变更，请打开当前版本后重新提交");
         String title = query.getOrDefault("title", filename).strip();
         if (title.isEmpty() || title.length() > 255) throw new IllegalArgumentException("文档标题须为 1–255 字符");
         Map<String, Object> options = new LinkedHashMap<>();
@@ -85,7 +88,7 @@ final class DocumentIngestion implements AutoCloseable {
         }
         String id = UUID.randomUUID().toString();
         var job = new Job(id, dataset, docId, title, filename, format, options,
-                CorpusService.documentVersion(document), Status.QUEUED, 0, Instant.now().toString(), "");
+                version, Status.QUEUED, 0, Instant.now().toString(), "");
         Files.createDirectory(root.resolve(id));
         Files.write(original(job), file);
         enqueue(job);
@@ -96,6 +99,10 @@ final class DocumentIngestion implements AutoCloseable {
         Job job = get(id);
         if (job == null) return null;
         if (job.status() != Status.FAILED) throw new Conflict("只可重试失败的入库任务");
+        if (!corpus.hasDataset(job.datasetId())) throw new Conflict("知识库已不存在");
+        String active = CorpusService.documentVersion(corpus.document(job.datasetId(), job.docId()));
+        if (!active.equals(job.expectedVersion()) && !active.equals(job.id()))
+            throw new Conflict("文档已变更，请基于当前版本重新提交");
         requireCapacity(job.datasetId(), job.docId());
         Job queued = job.state(Status.QUEUED, "");
         enqueue(queued);

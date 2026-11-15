@@ -145,6 +145,33 @@ class CorpusServiceTest {
         }
     }
 
+    @Test
+    void staleEditorAndSupersededRetryCannotReplaceCurrentDocument() throws Exception {
+        corpus.saveDataset(Map.of("datasetId", "uploads", "name", "Uploads"));
+        try (var server = new StandardServer(new InetSocketAddress("127.0.0.1", 0), corpus, 8, "fixture-token")) {
+            server.start();
+            String endpoint = "http://127.0.0.1:" + server.address().getPort();
+            String upload = "/api/ingestion?datasetId=uploads&docId=guide&filename=guide";
+            String original = workspaceCall(endpoint, upload + ".txt", "original publication", 202).path("id").asText();
+            assertEquals("READY", waitForIngestion(endpoint, original).path("status").asText());
+
+            String failed = workspaceCall(endpoint, upload + ".pdf&expectedVersion=" + original, "invalid", 202)
+                    .path("id").asText();
+            assertEquals("FAILED", waitForIngestion(endpoint, failed).path("status").asText());
+            String latest = workspaceCall(endpoint, upload + ".txt&expectedVersion=" + original, "new publication", 202)
+                    .path("id").asText();
+            assertEquals("READY", waitForIngestion(endpoint, latest).path("status").asText());
+
+            workspaceCall(endpoint, upload + ".txt&expectedVersion=" + original, "stale edit", 409);
+            workspaceCall(endpoint, "/api/ingestion/retry?jobId=" + failed, "", 409);
+            assertEquals(3, workspaceCall(endpoint, "/api/ingestion?datasetId=uploads", null, 200).size());
+            assertEquals(latest, corpus.document("uploads", "guide").get("sourceRevision"));
+            assertEquals("original publication", workspaceCall(endpoint,
+                    "/api/document-source?datasetId=uploads&docId=guide&revision=" + original, null, 200)
+                    .path("units").get(0).path("text").asText());
+        }
+    }
+
     private JsonNode waitForIngestion(String endpoint, String id) throws Exception {
         long deadline = System.nanoTime() + java.time.Duration.ofSeconds(10).toNanos();
         do {
