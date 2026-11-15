@@ -1,4 +1,5 @@
 import { withQuery, type ApiClient } from './api';
+import { readAnswerStream } from './answerStream';
 import type { SourceLocation } from './resources';
 
 export type Evidence = {
@@ -24,33 +25,6 @@ export async function streamAnswer(api: ApiClient, streamId: string, input: unkn
     method: 'POST', headers: {'Content-Type': 'application/json', Accept: 'text/event-stream'},
     body: JSON.stringify(input), signal,
   });
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('流式响应没有正文。');
-  const decoder = new TextDecoder();
-  let buffer = '';
-  try {
-    while (true) {
-      const {value, done} = await reader.read();
-      buffer += decoder.decode(value, {stream: !done});
-      let end = buffer.indexOf('\n\n');
-      while (end >= 0) {
-        const packet = buffer.slice(0, end);
-        buffer = buffer.slice(end + 2);
-        const lines = packet.split('\n');
-        const type = lines.find(line => line.startsWith('event:'))?.slice(6).trim();
-        const data = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
-        if (data) {
-          const payload = JSON.parse(data);
-          if (type === 'delta') onDelta(payload.text);
-          if (type === 'result') return payload as Answer;
-          if (type === 'error') throw new Error(payload.error || '流式回答失败');
-        }
-        end = buffer.indexOf('\n\n');
-      }
-      if (done) throw new Error('流式连接在返回正式答案前断开。');
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined);
-    reader.releaseLock();
-  }
+  if (!response.body) throw new Error('流式响应没有正文。');
+  return readAnswerStream(response.body, onDelta);
 }
