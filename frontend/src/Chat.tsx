@@ -4,25 +4,15 @@ import { CircleStop, Plus, SendHorizontal, MessageSquare, ScanText } from 'lucid
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
-import { contexts, strategies, streamAnswer, type Answer, type Reference } from './answers';
+import { contexts, strategies, streamAnswer, type Answer } from './answers';
 import { AnswerSources, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
 import { useResource } from './resources';
+import { decodeHistory, historyKey, type Message, type Session, type History } from './conversations';
 
-type Message = {id: string; role: 'user' | 'assistant'; content: string; model?: string; reference?: Reference};
-type Session = {id: string; title: string; datasetId: string; docId?: string; version?: string; messages: Message[]};
-type History = {sessions: Session[]; currentId: string};
 type Running = {streamId: string; controller: AbortController; streaming: boolean; target: Session; question: string};
-const historyKey = 'rag4pro.conversations.v1';
-
 function loadHistory(): History {
-  try {
-    const stored = JSON.parse(localStorage.getItem(historyKey) ?? 'null');
-    if (Array.isArray(stored?.sessions)) {
-      const sessions = stored.sessions.filter((session: Session) => session?.id && Array.isArray(session.messages));
-      return {sessions, currentId: typeof stored.currentId === 'string' ? stored.currentId : ''};
-    }
-  } catch { /* Storage is optional for the current conversation. */ }
-  return {sessions: [], currentId: ''};
+  try { return decodeHistory(localStorage.getItem(historyKey)); }
+  catch { return decodeHistory(null); }
 }
 
 function cancel(api: ApiClient, run: Running) {
