@@ -172,6 +172,22 @@ class CorpusServiceTest {
         }
     }
 
+    @Test
+    void unregisteredLegacyLibraryCanPublishAnotherDocument() throws Exception {
+        corpus.index(Map.of("datasetId", "legacy", "docId", "original",
+                "title", "Legacy document", "text", "Content indexed before library registration"));
+        assertEquals(false, corpus.datasets().getFirst().get("registered"));
+        try (var server = new StandardServer(new InetSocketAddress("127.0.0.1", 0), corpus, 8, "fixture-token")) {
+            server.start();
+            String endpoint = "http://127.0.0.1:" + server.address().getPort();
+            String upload = "/api/ingestion?datasetId=legacy&docId=added&filename=guide.txt";
+            String revision = workspaceCall(endpoint, upload, "additional uploaded document", 202).path("id").asText();
+            assertEquals("READY", waitForIngestion(endpoint, revision).path("status").asText());
+            assertEquals(revision, corpus.document("legacy", "added").get("sourceRevision"));
+            assertEquals(2, corpus.documents("legacy").size());
+        }
+    }
+
     private JsonNode waitForIngestion(String endpoint, String id) throws Exception {
         long deadline = System.nanoTime() + java.time.Duration.ofSeconds(10).toNanos();
         do {

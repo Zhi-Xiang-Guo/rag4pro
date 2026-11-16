@@ -127,7 +127,7 @@ public final class CorpusService {
         if (active != null && source.revision().equals(active.get("sourceRevision"))) return document(dataset, docId);
         if (!documentVersion(active).equals(expectedVersion))
             throw new IllegalStateException("文档已变更，请基于当前版本重新提交");
-        if (active == null && catalog.dataset(dataset).isEmpty())
+        if (!hasDataset(dataset))
             throw new IllegalArgumentException("请先创建知识库");
         return index(request, source);
     }

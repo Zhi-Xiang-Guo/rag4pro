@@ -123,6 +123,16 @@ final class DocumentIngestion implements AutoCloseable {
                 && (docId == null || docId.equals(job.docId())));
     }
 
+    synchronized void deleteDocument(String dataset, String docId) throws Exception {
+        if (pending(dataset, docId)) throw new Conflict("文档正处理入库任务");
+        corpus.delete(dataset, docId);
+    }
+
+    synchronized void deleteEmptyDataset(String dataset) throws Exception {
+        if (pending(dataset, null)) throw new Conflict("知识库有索引任务正在进行");
+        corpus.deleteEmptyDataset(dataset);
+    }
+
     private void requireCapacity(String dataset, String docId) {
         if (pending(dataset, docId)) throw new Conflict("该文档有正在处理的入库任务");
         if (jobs.values().stream().filter(Job::pending).count() >= MAX_PENDING)

@@ -151,8 +151,7 @@ public final class StandardServer implements AutoCloseable {
                 result = corpus.datasets();
             else if (path.equals("/api/datasets") && method.equals("DELETE")) {
                 String id = CorpusService.required(new HashMap<>(query), "datasetId");
-                if (ingestion.pending(id, null)) throw new DocumentIngestion.Conflict("知识库有索引任务正在进行");
-                corpus.deleteEmptyDataset(id);
+                ingestion.deleteEmptyDataset(id);
                 result = Map.of("deleted", true);
             } else if (path.equals("/api/documents") && method.equals("GET"))
                 result = corpus.documents(dataset);
@@ -161,8 +160,7 @@ public final class StandardServer implements AutoCloseable {
             else if (path.equals("/api/documents") && method.equals("DELETE")) {
                 String doc = query.get("docId");
                 if (doc == null || doc.isBlank()) throw new IllegalArgumentException("docId 不能为空");
-                if (ingestion.pending(dataset, doc)) throw new DocumentIngestion.Conflict("文档正处理入库任务");
-                corpus.delete(dataset, doc);
+                ingestion.deleteDocument(dataset, doc);
                 result = Map.of("deleted", true);
             } else if (method.equals("POST")
                     && Set.of("/api/datasets", "/api/documents", "/api/documents/batch", "/api/chunk-preview",
