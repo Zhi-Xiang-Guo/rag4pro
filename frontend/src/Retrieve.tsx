@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
 import { contexts, strategies, type Evidence } from './answers';
@@ -9,7 +9,9 @@ type Result = {
   hits: Evidence[]; evidence: Evidence[]; evidenceTokens: number; retrievalMs: number;
   contextMode: string; trace: Record<string, unknown>[];
 };
-type Comparison = {label: string; strategy: string; rerank: boolean; result: Result};
+type Comparison = {label: string; strategy: string; rerank: boolean} & (
+  {result: Result; error?: never} | {result?: never; error: string}
+);
 const stageLabels: Record<string, string> = {
   lexical_independent: 'BM25 召回', dense_independent: '向量召回', independent_rank: '排名融合',
   initial: '首次召回', relaxed: '放宽匹配', dense_fallback: '向量回退', rerank: '精排',
@@ -46,15 +48,30 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<SelectedSource>();
+  const activeRun = useRef<AbortController>();
+
+  useEffect(() => () => activeRun.current?.abort(), []);
+
+  function cancel() {
+    activeRun.current?.abort();
+    activeRun.current = undefined;
+    setBusy(false);
+  }
 
   async function compare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (activeRun.current) return;
     const form = new FormData(event.currentTarget);
     const question = String(form.get('question') ?? '').trim();
     const topK = Number(form.get('topK')), candidateK = Number(form.get('candidateK'));
     if (!datasetAvailable || !documentAvailable || !question) return;
     if (topK > candidateK) return setError('候选池须不小于最终 Top K。');
-    setError(''); setResults([]); setBusy(true);
+    const controller = new AbortController();
+    activeRun.current = controller;
+    setError('');
+    setSource(undefined);
+    setResults([]);
+    setBusy(true);
     const scope = {datasetId, docId: docId || undefined};
     setLastScope(scope);
     const request = {...scope, question, topK, candidateK, evidenceBudget: Number(form.get('budget'))};
@@ -62,13 +79,25 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
       for (const [name, label] of [['baseline', '基线'], ['comparison', '对照']]) {
         const strategy = String(form.get(name + '-strategy'));
         const useReranker = form.has(name + '-rerank');
-        const result = await api.json<Result>('/api/retrieve/context', 'POST', {
-          ...request, strategy, contextMode: form.get(name + '-context'), useReranker,
-        });
-        setResults(old => [...old, {label, strategy, rerank: useReranker, result}]);
+        const row = {label, strategy, rerank: useReranker};
+        let outcome: Comparison;
+        try {
+          const result = await api.json<Result>('/api/retrieve/context', 'POST', {
+            ...request, strategy, contextMode: form.get(name + '-context'), useReranker,
+          }, controller.signal);
+          outcome = {...row, result};
+        } catch (error) {
+          outcome = {...row, error: messageOf(error)};
+        }
+        if (controller.signal.aborted) return;
+        setResults(old => [...old, outcome]);
       }
-    } catch (error) { setError(messageOf(error)); }
-    finally { setBusy(false); }
+    } finally {
+      if (activeRun.current === controller) {
+        activeRun.current = undefined;
+        setBusy(false);
+      }
+    }
   }
 
   return <section className="page">
@@ -100,14 +129,17 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
       {(error || datasets.error || documents.error) && <p className="error" role="alert">
         {error || datasets.error || documents.error}</p>}
       <div className="actions"><button className="primary" disabled={busy || !datasetAvailable || !documentAvailable}>
-        {busy ? '正在运行…' : '运行对照'}</button></div>
+        {busy ? '正在运行…' : '运行对照'}</button>
+        {busy && <button type="button" onClick={cancel}>停止等待</button>}
+      </div>
     </form>
     {lastScope && results.length > 0 && <div className="actions">
       <Link className="button" to={withQuery('/chat', lastScope)}>按此范围提问</Link>
     </div>}
     <div className="comparison-grid comparison-results" aria-live="polite">
-      {results.map(({label, strategy, rerank, result}) => <article key={label} className="panel">
+      {results.map(({label, strategy, rerank, result, error}) => <article key={label} className="panel">
         <h2>{label} · {strategies[strategy]}{rerank && ' + 精排'}</h2>
+        {result ? <>
         <p className="muted">{contexts[result.contextMode]} · {result.hits.length} 个命中 · {result.evidenceTokens} tokens ·
           {' '}{Math.round(result.retrievalMs)} ms</p>
         <h3>召回命中</h3>
@@ -125,6 +157,7 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
             {typeof step.durationMs === 'number' ? ' · ' + Math.round(step.durationMs) + ' ms' : ''}
           </li>)}</ol>
         </details>}
+        </> : <p className="error">{error}</p>}
       </article>)}
     </div>
     {source && <EvidenceDialog api={api} selected={source} onClose={() => setSource(undefined)} />}
