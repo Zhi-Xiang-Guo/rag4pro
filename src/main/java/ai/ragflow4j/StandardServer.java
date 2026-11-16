@@ -1,6 +1,7 @@
 package ai.ragflow4j;
 
 import ai.ragflow4j.ragflow.CorpusService;
+import ai.ragflow4j.ragflow.DocumentSources;
 import ai.ragflow4j.ragflow.LocalChatModel;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.sun.net.httpserver.*;
@@ -82,6 +83,28 @@ public final class StandardServer implements AutoCloseable {
                     respond(exchange, 404, Map.of("error", "示例文档不存在"));
                     return;
                 }
+            }
+            else if ((path.equals("/api/document-source") || path.equals("/api/document-source/file"))
+                    && method.equals("GET")) {
+                String docId = CorpusService.required(new HashMap<>(query), "docId");
+                var document = corpus.document(dataset, docId);
+                String revision = query.getOrDefault("revision",
+                        document == null ? "" : Objects.toString(document.get("sourceRevision"), ""));
+                var version = document == null || revision.isBlank()
+                        ? null : corpus.sources().find(dataset, docId, revision);
+                if (version == null) {
+                    respond(exchange, 404, Map.of("error", "这个版本没有保存原件"));
+                    return;
+                }
+                if (path.endsWith("/file")) {
+                    exchange.getResponseHeaders().set("Content-Disposition",
+                            "attachment; filename*=UTF-8''" + URLEncoder.encode(version.name(), StandardCharsets.UTF_8)
+                                    .replace("+", "%20"));
+                    send(exchange, 200, DocumentSources.contentType(version.format()),
+                            corpus.sources().original(dataset, docId, revision));
+                    return;
+                }
+                result = version;
             }
             else if (path.equals("/api/datasets") && method.equals("GET"))
                 result = corpus.datasets();

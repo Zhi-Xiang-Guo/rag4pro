@@ -26,6 +26,10 @@ public final class DocumentCatalog {
         datasets = read(datasetPath);
     }
 
+    Path directory() {
+        return path.toAbsolutePath().getParent();
+    }
+
     private Map<String, Map<String, Object>> read(Path source) throws Exception {
         return Files.exists(source) ? json.readValue(source.toFile(), new TypeReference<>() {})
                 : new LinkedHashMap<>();
@@ -51,10 +55,15 @@ public final class DocumentCatalog {
 
     public synchronized void put(String dataset, String externalId, Map<String, Object> details)
             throws Exception {
+        put(dataset, externalId, identity(dataset, externalId), details);
+    }
+
+    synchronized void put(String dataset, String externalId, String internalId, Map<String, Object> details)
+            throws Exception {
         Map<String, Object> entry = new LinkedHashMap<>(details);
         entry.put("datasetId", dataset);
         entry.put("docId", externalId);
-        entry.put("internalDocId", identity(dataset, externalId));
+        entry.put("internalDocId", internalId);
         Map<String, Map<String, Object>> next = new LinkedHashMap<>(documents);
         next.put(identity(dataset, externalId), entry);
         save(path, next);

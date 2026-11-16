@@ -22,6 +22,7 @@ import net.jpountz.xxhash.XXHashFactory;
 public final class CorpusService {
     private final ElasticsearchStore store;
     private final DocumentCatalog catalog;
+    private final DocumentSources sources;
     private final IndexingPipeline indexing;
     private final ChunkingStrategies chunker;
     private final Cl100k tokens;
@@ -72,6 +73,7 @@ public final class CorpusService {
             LocalChatModel extractiveModel) {
         this.store = store;
         this.catalog = catalog;
+        sources = new DocumentSources(catalog.directory().resolve("sources"));
         this.embeddings = embeddings;
         this.chatModel = chatModel;
         this.extractiveModel = extractiveModel;
@@ -713,6 +715,15 @@ public final class CorpusService {
                         "",
                         false);
         return chat.complete(config, sources);
+    }
+
+    public DocumentSources sources() {
+        return sources;
+    }
+
+    public Map<String, Object> document(String dataset, String docId) {
+        var document = catalog.get(dataset, docId);
+        return document == null ? null : new LinkedHashMap<>(document);
     }
 
     public synchronized List<Map<String, Object>> documents(String dataset) {

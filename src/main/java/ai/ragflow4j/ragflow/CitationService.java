@@ -321,6 +321,14 @@ public final class CitationService {
         for (String key : List.of("section_kwd", "context_level_kwd", "chunk_strategy_kwd", "score_type",
                 "mom_id", "section_id"))
             if (chunk.containsKey(key)) result.put(key, chunk.get(key));
+        if (chunk.containsKey("source_revision_kwd")) {
+            var location = new LinkedHashMap<String, Object>();
+            location.put("revision", chunk.get("source_revision_kwd"));
+            location.put("kind", chunk.get("source_kind_kwd"));
+            location.put("unit", chunk.get("source_unit_int"));
+            if (chunk.containsKey("source_start_int")) location.put("start", chunk.get("source_start_int"));
+            result.put("source", location);
+        }
         return result;
     }
 }
