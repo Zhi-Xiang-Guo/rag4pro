@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
-import { contexts, strategies, type Evidence } from './answers';
+import { contexts, excerpt, strategies, type Evidence } from './answers';
 import { EvidenceCard, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
 import { useResource, type DocumentRow } from './resources';
+import { compareChunks } from './retrievalComparison';
 
 type Result = {
   hits: Evidence[]; evidence: Evidence[]; evidenceTokens: number; retrievalMs: number;
@@ -31,6 +32,39 @@ function StrategyFields({name, title, rerank}: {name: string; title: string; rer
       <input type="checkbox" name={name + '-rerank'} />精排
     </label>}
   </fieldset>;
+}
+
+function ComparisonSummary({baseline, comparison}: {baseline: Result; comparison: Result}) {
+  const hits = compareChunks(baseline.hits, comparison.hits);
+  const evidence = compareChunks(baseline.evidence, comparison.evidence);
+  return <section className="panel stack">
+    <h2>命中与证据差异</h2>
+    <div className="ui-table-wrap"><table className="ui-table">
+      <thead><tr><th scope="col">范围</th><th scope="col">共同</th><th scope="col">基线独有</th>
+        <th scope="col">对照独有</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Top K 命中</th><td>{hits.shared}</td><td>{hits.baselineOnly}</td>
+          <td>{hits.comparisonOnly}</td></tr>
+        <tr><th scope="row">预算内证据</th><td>{evidence.shared}</td><td>{evidence.baselineOnly}</td>
+          <td>{evidence.comparisonOnly}</td></tr>
+      </tbody>
+    </table></div>
+    {hits.changes.length > 0 && <details className="retrieval-stages">
+      <summary>查看命中块名次</summary>
+      <div className="ui-table-wrap"><table className="ui-table">
+        <thead><tr><th scope="col">文档块</th><th scope="col">基线名次</th><th scope="col">对照名次</th></tr></thead>
+        <tbody>{hits.changes.map(({id, chunk, baseline, comparison}) => {
+          const content = excerpt(chunk).replace(/\s+/g, ' ').trim();
+          return <tr key={id}>
+            <td>{chunk.document_name ?? chunk.docnm_kwd ?? id}
+              {content && <div className="muted">{content.length > 96 ? content.slice(0, 96) + '…' : content}</div>}
+            </td>
+            <td>{baseline ?? '—'}</td><td>{comparison ?? '—'}</td>
+          </tr>;
+        })}</tbody>
+      </table></div>
+    </details>}
+  </section>;
 }
 
 export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean}) {
@@ -136,6 +170,8 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
     {lastScope && results.length > 0 && <div className="actions">
       <Link className="button" to={withQuery('/chat', lastScope)}>按此范围提问</Link>
     </div>}
+    {results[0]?.result && results[1]?.result &&
+      <ComparisonSummary baseline={results[0].result} comparison={results[1].result} />}
     <div className="comparison-grid comparison-results" aria-live="polite">
       {results.map(({label, strategy, rerank, result, error}) => <article key={label} className="panel">
         <h2>{label} · {strategies[strategy]}{rerank && ' + 精排'}</h2>
