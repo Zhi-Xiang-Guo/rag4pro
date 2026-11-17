@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.Instant;
 import java.util.*;
 
 import org.junit.jupiter.api.*;
@@ -186,6 +187,45 @@ class CorpusServiceTest {
             assertEquals(revision, corpus.document("legacy", "added").get("sourceRevision"));
             assertEquals(2, corpus.documents("legacy").size());
         }
+    }
+
+    @Test
+    void restartRecoversPendingJobsInQueueOrderDespiteMalformedManifest() throws Exception {
+        corpus.saveDataset(Map.of("datasetId", "uploads", "name", "Uploads"));
+        String older = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+        String newer = "00000000-0000-4000-8000-000000000001";
+        String finished = "00000000-0000-4000-8000-000000000002";
+        String invalid = "00000000-0000-4000-8000-000000000003";
+        seedIngestion(older, "INDEXING", "2026-01-01T00:00:00Z");
+        seedIngestion(newer, "QUEUED", "2026-01-01T00:00:00.1Z");
+        seedIngestion(finished, "READY", "2026-01-01T00:00:01Z");
+        Files.writeString(Files.createDirectory(temp.resolve("ingestion").resolve(invalid)).resolve("job.json"), "{");
+
+        try (var server = new StandardServer(new InetSocketAddress("127.0.0.1", 0), corpus, 8, "fixture-token")) {
+            server.start();
+            String endpoint = "http://127.0.0.1:" + server.address().getPort();
+            JsonNode first = waitForIngestion(endpoint, older);
+            JsonNode second = waitForIngestion(endpoint, newer);
+            assertEquals("READY", first.path("status").asText(), first.toString());
+            assertEquals("READY", second.path("status").asText(), second.toString());
+            assertTrue(Instant.parse(first.path("updatedAt").asText())
+                    .isBefore(Instant.parse(second.path("updatedAt").asText())));
+            assertEquals("2026-01-01T00:00:00Z", first.path("queuedAt").asText());
+            assertEquals(3, workspaceCall(endpoint, "/api/ingestion?datasetId=uploads", null, 200).size());
+            assertFalse(Files.exists(temp.resolve("ingestion").resolve(finished).resolve("upload")));
+        }
+    }
+
+    private void seedIngestion(String id, String status, String updatedAt) throws Exception {
+        Path folder = Files.createDirectories(temp.resolve("ingestion").resolve(id));
+        Files.writeString(folder.resolve("upload"), "Staged content for " + id);
+        Map<String, Object> job = Map.ofEntries(
+                Map.entry("id", id), Map.entry("datasetId", "uploads"), Map.entry("docId", id),
+                Map.entry("title", "Recovered document"), Map.entry("filename", "document.txt"),
+                Map.entry("format", "txt"), Map.entry("options", Map.of()), Map.entry("expectedVersion", ""),
+                Map.entry("status", status), Map.entry("attempts", 0), Map.entry("updatedAt", updatedAt),
+                Map.entry("error", ""));
+        Files.write(folder.resolve("job.json"), JSON.writeValueAsBytes(job));
     }
 
     private JsonNode waitForIngestion(String endpoint, String id) throws Exception {

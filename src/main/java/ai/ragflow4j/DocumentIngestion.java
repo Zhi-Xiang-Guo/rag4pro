@@ -18,11 +18,16 @@ final class DocumentIngestion implements AutoCloseable {
 
     record Job(String id, String datasetId, String docId, String title, String filename, String format,
                Map<String, Object> options, String expectedVersion, Status status, int attempts,
-               String updatedAt, String error) {
+               String updatedAt, String error, String queuedAt) {
+        Job {
+            if (queuedAt == null) queuedAt = updatedAt;
+        }
+
         Job state(Status next, String message) {
+            String now = Instant.now().toString();
             return new Job(id, datasetId, docId, title, filename, format, options, expectedVersion,
-                    next, next == Status.PARSING ? attempts + 1 : attempts, Instant.now().toString(),
-                    message);
+                    next, next == Status.PARSING ? attempts + 1 : attempts, now, message,
+                    next == Status.QUEUED ? now : queuedAt);
         }
 
         boolean pending() {
@@ -46,18 +51,36 @@ final class DocumentIngestion implements AutoCloseable {
         this.root = root;
         Files.createDirectories(root);
         try (var dirs = Files.list(root)) {
-            for (Path directory : dirs.sorted().toList()) {
+            for (Path directory : dirs.toList()) {
                 Path manifest = directory.resolve("job.json");
                 if (!Files.isRegularFile(manifest)) continue;
-                Job job = Json.MAPPER.readValue(manifest.toFile(), Job.class);
-                jobs.put(job.id(), job);
+                try {
+                    Job job = Json.MAPPER.readValue(manifest.toFile(), Job.class);
+                    if (job == null || !directory.getFileName().toString().equals(job.id())
+                            || !UUID.fromString(job.id()).toString().equals(job.id())
+                            || job.status() == null || job.options() == null || job.expectedVersion() == null
+                            || job.datasetId() == null || job.docId() == null || job.title() == null
+                            || job.filename() == null || job.format() == null) {
+                        throw new IllegalArgumentException("invalid ingestion manifest");
+                    }
+                    Instant.parse(job.queuedAt());
+                    Instant.parse(job.updatedAt());
+                    jobs.put(job.id(), job);
+                } catch (IOException | RuntimeException error) {
+                    System.err.println("Could not load ingestion job " + directory.getFileName() + ": "
+                            + error.getClass().getSimpleName());
+                }
             }
         }
     }
 
-    synchronized void start() throws IOException {
-        for (Job job : List.copyOf(jobs.values())) {
-            if (job.pending()) enqueue(job.state(Status.QUEUED, ""));
+    synchronized void start() {
+        var recovering = jobs.values().stream()
+                .sorted(Comparator.comparing((Job job) -> Instant.parse(job.queuedAt())).thenComparing(Job::id))
+                .toList();
+        for (Job job : recovering) {
+            if (job.pending()) run(job);
+            else if (job.status() == Status.READY) removeStagedUpload(job);
         }
     }
 
@@ -87,8 +110,9 @@ final class DocumentIngestion implements AutoCloseable {
             if (!query.getOrDefault(key, "").isBlank()) options.put(key, parseOption(key, query.get(key)));
         }
         String id = UUID.randomUUID().toString();
+        String now = Instant.now().toString();
         var job = new Job(id, dataset, docId, title, filename, format, options,
-                version, Status.QUEUED, 0, Instant.now().toString(), "");
+                version, Status.QUEUED, 0, now, "", now);
         Files.createDirectory(root.resolve(id));
         Files.write(original(job), file);
         enqueue(job);
@@ -115,7 +139,8 @@ final class DocumentIngestion implements AutoCloseable {
 
     synchronized List<Job> list(String dataset) {
         return jobs.values().stream().filter(job -> dataset.equals(job.datasetId()))
-                .sorted(Comparator.comparing(Job::updatedAt).reversed()).toList();
+                .sorted(Comparator.comparing((Job job) -> Instant.parse(job.updatedAt()))
+                        .thenComparing(Job::id).reversed()).toList();
     }
 
     synchronized boolean pending(String dataset, String docId) {
@@ -141,6 +166,10 @@ final class DocumentIngestion implements AutoCloseable {
 
     private void enqueue(Job job) throws IOException {
         persist(job);
+        run(job);
+    }
+
+    private void run(Job job) {
         worker.submit(() -> ingest(job.id()));
     }
 
@@ -189,10 +218,14 @@ final class DocumentIngestion implements AutoCloseable {
             }
             return;
         }
+        removeStagedUpload(job);
+    }
+
+    private void removeStagedUpload(Job job) {
         try {
             Files.deleteIfExists(original(job));
         } catch (IOException cleanupFailure) {
-            System.err.println("Could not remove staged upload for " + id);
+            System.err.println("Could not remove staged upload for " + job.id());
         }
     }
 
