@@ -20,6 +20,8 @@ final class ChunkingStrategies {
 
     private record Section(String heading, List<String> paragraphs) {}
 
+    private record Window(String text, int start) {}
+
     ChunkingStrategies(Cl100k tokens) {
         this.tokens = tokens;
         general = new GeneralChunker(tokens);
@@ -36,6 +38,10 @@ final class ChunkingStrategies {
     }
 
     Plan plan(String text, String format, String strategy, GeneralChunker.Config config) {
+        return plan(text, format, strategy, config, false);
+    }
+
+    Plan plan(String text, String format, String strategy, GeneralChunker.Config config, boolean locate) {
         validate(strategy, config);
         boolean markdown = switch (format) {
             case "md" -> true;
@@ -45,7 +51,11 @@ final class ChunkingStrategies {
         if (strategy.equals("fixed")) {
             List<Map<String, Object>> pieces = windows(GeneralChunker.normalize(text),
                     config.chunkTokenSize(), config.overlapPercent()).stream()
-                    .map(value -> leaf(value, "", strategy)).toList();
+                    .map(window -> {
+                        var piece = leaf(window.text(), "", strategy);
+                        if (locate) piece.put("source_start_int", window.start());
+                        return piece;
+                    }).toList();
             return new Plan(strategy, config, pieces, List.of());
         }
         var parsed = markdown ? new MarkdownParser().parse(text) : null;
@@ -132,7 +142,7 @@ final class ChunkingStrategies {
         for (int start = sentences.first(), end = sentences.next(); end != BreakIterator.DONE;
              start = end, end = sentences.next()) {
             String sentence = text.substring(start, end).strip();
-            parts.addAll(windows(sentence, size, 0));
+            windows(sentence, size, 0).stream().map(Window::text).forEach(parts::add);
         }
         return group(parts, size).stream().map(group -> String.join("\n\n", group)).toList();
     }
@@ -155,15 +165,15 @@ final class ChunkingStrategies {
         return assembled;
     }
 
-    private List<String> windows(String text, int size, double overlap) {
-        List<String> parts = new ArrayList<>();
+    private List<Window> windows(String text, int size, double overlap) {
+        List<Window> parts = new ArrayList<>();
         int overlapTokens = (int) (size * overlap / 100);
         for (int start = 0; start < text.length(); ) {
             int end = Math.min(text.length(), start + size * 12);
             if (end < text.length() && Character.isLowSurrogate(text.charAt(end))) end--;
             String part = tokens.trim(text.substring(start, end), size);
             if (part.isEmpty()) part = text.substring(start, text.offsetByCodePoints(start, 1));
-            if (!part.isBlank()) parts.add(part);
+            if (!part.isBlank()) parts.add(new Window(part, start));
             if (start + part.length() == text.length()) break;
             int advance = overlapTokens == 0 ? part.length()
                     : tokens.trim(part, Math.max(1, tokens.count(part) - overlapTokens)).length();

@@ -116,14 +116,37 @@ public final class CorpusService {
      * 文档入库主线：解析 → 分块 → 分词与向量化 → 字段整理 → ES 和文档目录持久化。
      */
     public synchronized Map<String, Object> index(Map<String, Object> request) throws Exception {
+        return index(request, null);
+    }
+
+    public synchronized Map<String, Object> indexSource(Map<String, Object> request,
+                                                        DocumentSources.Version source,
+                                                        String expectedVersion) throws Exception {
+        String dataset = required(request, "datasetId"), docId = required(request, "docId");
+        var active = catalog.get(dataset, docId);
+        if (active != null && source.revision().equals(active.get("sourceRevision"))) return document(dataset, docId);
+        if (!documentVersion(active).equals(expectedVersion))
+            throw new IllegalStateException("文档已变更，请基于当前版本重新提交");
+        if (active == null && catalog.dataset(dataset).isEmpty())
+            throw new IllegalArgumentException("请先创建知识库");
+        return index(request, source);
+    }
+
+    public static String documentVersion(Map<String, Object> entry) {
+        return entry == null ? "" : Objects.toString(entry.getOrDefault("sourceRevision",
+                entry.get("sourceSha256")), "");
+    }
+
+    private Map<String, Object> index(Map<String, Object> request, DocumentSources.Version source) throws Exception {
         String dataset = required(request, "datasetId"),
                 externalId = required(request, "docId"),
-                name = required(request, "title"),
-                text = required(request, "text");
+                name = required(request, "title");
         // 用户传的 docId 只在数据集内唯一；内部 ID 同时包含数据集，避免不同数据集互相覆盖。
-        String docId = DocumentCatalog.identity(dataset, externalId),
-                language = string(request, "language", importLanguage(dataset));
-        var plan = chunkPlan(request, dataset, name, text);
+        String stableId = DocumentCatalog.identity(dataset, externalId);
+        String docId = source == null ? stableId : DocumentCatalog.identity(dataset, externalId + "\0" + source.revision());
+        String language = string(request, "language", importLanguage(dataset));
+        String text = source == null ? required(request, "text") : "";
+        var plan = source == null ? chunkPlan(request, dataset, name, text) : sourcePlan(request, dataset, name, source);
         var config = plan.config();
         List<String> warnings = new ArrayList<>(plan.warnings());
         var lexicalConfig =
@@ -168,12 +191,18 @@ public final class CorpusService {
                                 "chunkCount",
                                 sourceCount,
                                 "sourceSha256",
-                                DocumentCatalog.sourceDigest(text.getBytes(StandardCharsets.UTF_8)),
+                                source == null ? DocumentCatalog.sourceDigest(text.getBytes(StandardCharsets.UTF_8))
+                                        : source.sha256(),
                                 "embeddingIdentity",
                                 embeddingIdentity,
                                 "chunkStrategy", plan.strategy(),
                                 "chunkTokenSize", config.chunkTokenSize(),
                                 "overlapPercent", config.overlapPercent()));
+        if (source != null) {
+            details.put("sourceRevision", source.revision());
+            details.put("sourceName", source.name());
+            details.put("sourceFormat", source.format());
+        }
         if (request.containsKey("metadata")) {
             if (!(request.get("metadata") instanceof Map<?, ?> metadata))
                 throw new IllegalArgumentException("metadata 必须为对象");
@@ -184,7 +213,7 @@ public final class CorpusService {
         // ES 和本地文档目录没有共享事务：先保留旧块，目录写失败时尝试恢复 ES。
         store.replace(dataset, docId, chunks);
         try {
-            catalog.put(dataset, externalId, details);
+            catalog.put(dataset, externalId, docId, details);
         } catch (Exception failure) {
             try {
                 store.replace(dataset, docId, oldChunks);
@@ -192,6 +221,14 @@ public final class CorpusService {
                 failure.addSuppressed(rollback);
             }
             throw failure;
+        }
+        if (old != null && !docId.equals(old.get("internalDocId"))) {
+            try {
+                store.deleteDocument(dataset, Objects.toString(old.get("internalDocId")));
+            } catch (Exception error) {
+                // The retrieval scope only includes the catalog's live version.
+                warnings.add("新版已生效，旧索引块暂未清理");
+            }
         }
         if (contentCache != null) {
             try {
@@ -293,6 +330,11 @@ public final class CorpusService {
     }
 
     private ChunkingStrategies.Plan chunkPlan(Map<String, Object> request, String dataset, String title, String text) {
+        return chunkPlan(request, dataset, title, text, false);
+    }
+
+    private ChunkingStrategies.Plan chunkPlan(Map<String, Object> request, String dataset,
+                                             String title, String text, boolean locate) {
         var options = catalog.dataset(dataset);
         String savedStrategy = string(options, "chunkStrategy", "general");
         String strategy = string(request, "chunkStrategy", savedStrategy);
@@ -304,14 +346,49 @@ public final class CorpusService {
                 strings(request, "childrenDelimiters", List.of()),
                 number(request, "overlapPercent", overlap));
         String format = string(request, "fileType", title.toLowerCase(Locale.ROOT).endsWith(".md") ? "md" : "txt");
-        return chunker.plan(text, format, strategy, config);
+        return chunker.plan(text, format, strategy, config, locate);
+    }
+
+    private ChunkingStrategies.Plan sourcePlan(Map<String, Object> request, String dataset, String title,
+                                               DocumentSources.Version source) {
+        var options = new LinkedHashMap<>(request);
+        options.put("fileType", source.format().equals("md") ? "md" : "txt");
+        List<Map<String, Object>> pieces = new ArrayList<>();
+        Set<String> warnings = new LinkedHashSet<>();
+        ChunkingStrategies.Plan plan = null;
+        for (var unit : source.units()) {
+            plan = chunkPlan(options, dataset, title, unit.text(), true);
+            warnings.addAll(plan.warnings());
+            String key = unit.kind() + "/" + unit.number();
+            for (var piece : plan.pieces()) {
+                piece.put("source_revision_kwd", source.revision());
+                piece.put("source_kind_kwd", unit.kind());
+                piece.put("source_unit_int", unit.number());
+                if (!piece.containsKey("source_start_int")) {
+                    String body = Objects.toString(piece.get("text"), "");
+                    int offset = unit.text().indexOf(body);
+                    if (!body.isBlank() && offset >= 0 && unit.text().indexOf(body, offset + 1) < 0)
+                        piece.put("source_start_int", offset);
+                }
+                if (piece.containsKey("mom") || piece.containsKey("mom_with_weight")) {
+                    Object reference = piece.getOrDefault("parent_ref",
+                            piece.getOrDefault("mom", piece.get("mom_with_weight")));
+                    piece.put("parent_ref", key + "/" + reference);
+                }
+                if (piece.containsKey("section_ref")) piece.put("section_ref", key + "/" + piece.get("section_ref"));
+                pieces.add(piece);
+            }
+        }
+        if (plan == null) throw new IllegalArgumentException("文档没有可索引的正文");
+        return new ChunkingStrategies.Plan(plan.strategy(), plan.config(), pieces, List.copyOf(warnings));
     }
 
     private void assignChunkIds(ChunkingStrategies.Plan plan, String documentId) {
         for (int i = 0; i < plan.pieces().size(); i++) {
             var piece = plan.pieces().get(i);
             String text = Objects.toString(piece.get("text"), "");
-            String key = plan.strategy().equals("general") ? text + documentId
+            String key = plan.strategy().equals("general") && !piece.containsKey("source_revision_kwd")
+                    ? text + documentId
                     : documentId + "\0" + plan.strategy() + "\0" + i + "\0" + text;
             piece.putIfAbsent("id", hash(key));
         }
@@ -406,10 +483,13 @@ public final class CorpusService {
     private Map<String, Object> contextChunk(Map<String, Object> leaf, String id, String content, String level, int order) {
         Map<String, Object> context = new LinkedHashMap<>();
         for (String key : List.of("doc_id", "docnm_kwd", "kb_id", "position_int", "create_timestamp_flt",
-                "page_num_int", "top_int", "section_kwd", "section_id"))
+                "page_num_int", "top_int", "section_kwd", "section_id",
+                "source_revision_kwd", "source_kind_kwd", "source_unit_int"))
             if (leaf.containsKey(key)) context.put(key, leaf.get(key));
         context.put("id", id);
         context.put("content_with_weight", content);
+        if (content.equals(leaf.get("content_with_weight")) && leaf.containsKey("source_start_int"))
+            context.put("source_start_int", leaf.get("source_start_int"));
         context.put("available_int", 0);
         context.put("chunk_order_int", order);
         context.put("context_level_kwd", level);
@@ -484,13 +564,13 @@ public final class CorpusService {
         request.question = required(input, "question");
         String doc = string(input, "docId", "");
         request.docIds =
-                doc.isBlank() ? List.of() : List.of(DocumentCatalog.identity(request.datasetId, doc));
+                doc.isBlank() ? List.of() : List.of(internalId(request.datasetId, doc));
         if (input.get("docIds") instanceof List<?> requestedIds) {
             Set<String> known = catalog.existingIds(request.datasetId);
             request.docIds =
                     requestedIds.stream()
                             .map(Object::toString)
-                            .map(id -> known.contains(id) ? id : DocumentCatalog.identity(request.datasetId, id))
+                            .map(id -> known.contains(id) ? id : internalId(request.datasetId, id))
                             .toList();
         }
         // metadata 先筛选文档 ID；后面的 ES 查询再在这些文档中查 chunk。
@@ -528,7 +608,10 @@ public final class CorpusService {
             throw new IllegalArgumentException("knnNumCandidates 必须不小于 knnTopK 且不超过 10000");
         // 目录提供源文档的存活集合，检索器据此排除 ES 中可能残留的已删除文档块。
         request.existingDocumentIds = catalog.existingIds(request.datasetId);
-        request.filter = input.get("filter") instanceof Map<?, ?> map ? objectMap(map) : Map.of();
+        request.filter = input.get("filter") instanceof Map<?, ?> map ? objectMap(map) : new LinkedHashMap<>();
+        request.filter.put(ElasticsearchStore.ACTIVE_SOURCE_DOCUMENTS, catalog.list(request.datasetId).stream()
+                .filter(document -> document.containsKey("sourceRevision"))
+                .map(document -> document.get("internalDocId").toString()).toList());
         request.allowDenseFallback = bool(input, "allowDenseFallback", true);
         request.highlight = bool(input, "highlight", false);
         request.aggs = bool(input, "aggs", true);
@@ -754,14 +837,27 @@ public final class CorpusService {
         catalog.deleteEmptyDataset(id);
     }
 
+    private String internalId(String dataset, String doc) {
+        var document = catalog.get(dataset, doc);
+        return document == null ? DocumentCatalog.identity(dataset, doc) : document.get("internalDocId").toString();
+    }
+
     public synchronized List<Map<String, Object>> chunks(String dataset, String doc)
             throws Exception {
-        return summaries(
-                store.chunks(dataset, doc == null ? null : DocumentCatalog.identity(dataset, doc)));
+        return chunks(dataset, doc, false);
+    }
+
+    public synchronized List<Map<String, Object>> chunks(String dataset, String doc, boolean includeContext)
+            throws Exception {
+        if (includeContext && doc != null) return summaries(store.allDocumentChunks(dataset, internalId(dataset, doc)));
+        var active = catalog.existingIds(dataset);
+        return summaries(store.chunks(dataset, doc == null ? null : internalId(dataset, doc)).stream()
+                .filter(chunk -> !chunk.containsKey("source_revision_kwd") || active.contains(chunk.get("doc_id")))
+                .toList());
     }
 
     public synchronized void delete(String dataset, String doc) throws Exception {
-        String internalId = DocumentCatalog.identity(dataset, doc);
+        String internalId = internalId(dataset, doc);
         List<Map<String, Object>> oldChunks = store.allDocumentChunks(dataset, internalId);
         try {
             store.deleteDocument(dataset, internalId);

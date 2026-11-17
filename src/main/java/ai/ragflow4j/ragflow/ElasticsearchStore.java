@@ -20,6 +20,7 @@ import java.util.*;
  * 检索重试、最终评分和分页由 StandardRetrieval 决定；阅读这里时重点观察实际发送的 body。
  */
 public final class ElasticsearchStore {
+    static final String ACTIVE_SOURCE_DOCUMENTS = "_active_source_documents";
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final TypeReference<LinkedHashMap<String, Object>> MAP = new TypeReference<>() {
     };
@@ -210,11 +211,21 @@ public final class ElasticsearchStore {
             String dataset, List<String> documents, Map<String, Object> filter) {
         Map<String, Object> conditions = new LinkedHashMap<>(filter == null ? Map.of() : filter);
         conditions.putIfAbsent("available_int", 1);
+        Object active = conditions.remove(ACTIVE_SOURCE_DOCUMENTS);
         Map<String, Object> result = conditionBool(conditions);
         List<Object> clauses = new ArrayList<>();
         clauses.add(Map.of("terms", Map.of("kb_id", List.of(dataset))));
         if (documents != null && !documents.isEmpty())
             clauses.add(Map.of("terms", Map.of("doc_id", documents)));
+        if (active instanceof List<?> ids) {
+            // Old documents lack a revision field. Only the catalog can expose staged versioned chunks.
+            List<Object> visible = new ArrayList<>();
+            visible.add(Map.of("bool", Map.of("must_not", Map.of("exists", Map.of("field", "source_revision_kwd")))));
+            for (int i = 0; i < ids.size(); i += 16384) {
+                visible.add(Map.of("terms", Map.of("doc_id", ids.subList(i, Math.min(i + 16384, ids.size())))));
+            }
+            clauses.add(Map.of("bool", Map.of("should", visible, "minimum_should_match", 1)));
+        }
         if (result.get("filter") instanceof List<?> existing) clauses.addAll(existing);
         result.put("filter", clauses);
         return result;
