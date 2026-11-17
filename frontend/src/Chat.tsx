@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { CircleStop, Plus, SendHorizontal, MessageSquare, ScanText } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { citationMarkdown } from './citationMarkdown';
 import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
 import { contexts, strategies, streamAnswer, type Answer } from './answers';
 import { AnswerSources, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
@@ -23,24 +24,23 @@ function cancel(api: ApiClient, run: Running) {
 }
 
 function AssistantMessage({message, onCitation}: {message: Message; onCitation: (index: number) => void}) {
-  const text = message.content.replace(/\[ID:(\d+)\]/g, (label, number: string) => {
-    const index = Number(number);
-    return message.reference?.chunks?.[index] ? '[' + (index + 1) + '](#citation-' + index + ')' : label;
-  });
   return <article className="chat-message assistant">
     <header><span className="assistant-icon"><ScanText size={14} /></span><strong>rag4pro</strong>
       {message.model && <span className="muted">{message.model}</span>}</header>
-    <div className="markdown"><Markdown skipHtml remarkPlugins={[remarkGfm]} components={{
-      a: ({href, children}) => {
-        const citation = href?.match(/^#citation-(\d+)$/);
-        if (citation && message.reference?.chunks?.[Number(citation[1])]) {
-          return <button type="button" className="citation" aria-label={'查看引用 ' + (Number(citation[1]) + 1)}
-            onClick={() => onCitation(Number(citation[1]))}>{children}</button>;
-        }
-        return <a href={href} rel="noreferrer">{children}</a>;
-      },
-      img: ({alt}) => alt ? <span>{alt}</span> : null,
-    }}>{text}</Markdown></div>
+    <div className="markdown"><Markdown skipHtml remarkPlugins={[remarkGfm, citationMarkdown(message.reference?.chunks?.length ?? 0)]}
+      components={{
+        span: ({node, children}) => {
+          const marker = node?.properties['data-citation-index'];
+          const index = typeof marker === 'string' ? Number(marker) : -1;
+          if (message.reference?.chunks?.[index]) {
+            return <button type="button" className="citation" aria-label={'查看引用 ' + (index + 1)}
+              onClick={() => onCitation(index)}>{children}</button>;
+          }
+          return <span>{children}</span>;
+        },
+        a: ({href, children}) => <a href={href} rel="noreferrer">{children}</a>,
+        img: ({alt}) => alt ? <span>{alt}</span> : null,
+      }}>{message.content}</Markdown></div>
   </article>;
 }
 
