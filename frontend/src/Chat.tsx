@@ -174,8 +174,8 @@ export default function Chat({api}: {api: ApiClient}) {
               onCitation={index => {
                 setInspection({messageId: message.id, index});
                 const chunk = message.reference?.chunks?.[index];
-                const span = message.reference?.spans?.find(item => item.citationIndex === index);
-                if (chunk) setReading({chunk, span, datasetId});
+                const spans = message.reference?.spans?.filter(item => item.citationIndex === index);
+                if (chunk) setReading({chunk, spans, datasetId});
               }} />)}
         {busy && <article className="chat-message assistant" aria-live="polite">
           <header><span className="assistant-icon"><ScanText size={14} /></span><strong>rag4pro</strong></header>

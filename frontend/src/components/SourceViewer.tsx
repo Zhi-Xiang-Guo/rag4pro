@@ -1,4 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
+import { sourceRanges } from '../citationRanges';
+import type { CitationSpan } from '../answers';
+import { HighlightedText } from './HighlightedText';
 import { Download } from 'lucide-react';
 import { messageOf, type ApiClient } from '../api';
 import { sourceUrl, useResource, type SourcePointer, type SourceUnit, type SourceVersion } from '../resources';
@@ -15,20 +18,7 @@ export function unitLabel(kind: string, number: number) {
   }
 }
 
-function matchedRange(unit: SourceUnit, pointer: SourcePointer) {
-  const {start} = pointer.location ?? {};
-  const content = pointer.content;
-  if (!content) return null;
-  const quote = pointer.span?.text ?? content;
-  if (start !== undefined && unit.text.slice(start, start + content.length) === content) {
-    const offset = start + (pointer.span?.start ?? 0);
-    if (unit.text.slice(offset, offset + quote.length) === quote) return {start: offset, end: offset + quote.length};
-  }
-  const found = unit.text.indexOf(quote);
-  return found >= 0 && unit.text.indexOf(quote, found + 1) < 0 ? {start: found, end: found + quote.length} : null;
-}
-
-export function SourceViewer({api, pointer}: {api: ApiClient; pointer: SourcePointer}) {
+export function SourceViewer({api, pointer}: {api: ApiClient; pointer: SourcePointer & {spans?: CitationSpan[]}}) {
   const {data, error, loading} = useResource<SourceVersion>(api, sourceUrl(pointer));
   const [unitKey, setUnitKey] = useState('');
   const [downloadError, setDownloadError] = useState('');
@@ -38,8 +28,8 @@ export function SourceViewer({api, pointer}: {api: ApiClient; pointer: SourcePoi
   const keyOf = (unit: SourceUnit) => unit.kind + '/' + unit.number;
   const initialKey = pointer.location?.kind + '/' + pointer.location?.unit;
   const unit = data.units.find(item => keyOf(item) === (unitKey || initialKey)) ?? data.units[0];
-  const matches = unit && (!unitKey || unitKey === initialKey) && (!pointer.location || keyOf(unit) === initialKey)
-    ? matchedRange(unit, pointer) : null;
+  const highlights = unit && (!unitKey || unitKey === initialKey) && (!pointer.location || keyOf(unit) === initialKey)
+    ? sourceRanges(unit.text, pointer.content, pointer.location?.start, pointer.spans ?? (pointer.span ? [pointer.span] : [])) : [];
   const path = sourceUrl({...pointer, revision: data.revision}, true);
   const visual = data.format === 'pdf' || data.format === 'docx';
 
@@ -69,8 +59,7 @@ export function SourceViewer({api, pointer}: {api: ApiClient; pointer: SourcePoi
     </label>}
     {unit && <div className="source-text">
       <p className="muted">{unitLabel(unit.kind, unit.number)}{visual ? ' · 提取的正文' : ''}</p>
-      <pre tabIndex={0}>{matches ? <>{unit.text.slice(0, matches.start)}<mark>{unit.text.slice(matches.start, matches.end)}</mark>
-        {unit.text.slice(matches.end)}</> : unit.text}</pre>
+      <pre tabIndex={0}><HighlightedText text={unit.text} ranges={highlights} /></pre>
     </div>}
     {visual && preview && <Suspense fallback={<p className="muted">正在加载预览…</p>}>
       {data.format === 'pdf' ? <PdfPreview api={api} path={path} page={unit?.number ?? 1} />
