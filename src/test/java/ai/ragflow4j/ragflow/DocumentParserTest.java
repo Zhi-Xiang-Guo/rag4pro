@@ -18,24 +18,25 @@ class DocumentParserTest {
     @Test void identicalPdfTextKeepsPageNumbersAndBlankPagesDoNotShiftThem() throws Exception {
         var output = new ByteArrayOutputStream();
         try (var doc = new PDDocument()) {
-            for (int number = 1; number <= 3; number++) {
+            for (int number = 1; number <= 5; number++) {
                 var page = new PDPage();
                 doc.addPage(page);
-                if (number == 2) continue;
+                if (number == 2 || number == 5) continue;
                 try (var pageText = new PDPageContentStream(doc, page)) {
                     pageText.beginText();
                     pageText.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
                     pageText.newLineAtOffset(25, 685);
-                    pageText.showText("Repeated on two pages.");
+                    pageText.showText(number == 4 ? "Only on the fourth page." : "Repeated on two pages.");
                     pageText.endText();
                 }
             }
             doc.save(output);
         }
         var units = DocumentParser.parse("pdf", output.toByteArray());
-        assertEquals(List.of(1, 3), units.stream().map(DocumentSources.Unit::number).toList());
-        assertEquals(units.getFirst().text(), units.getLast().text());
-        assertTrue(units.getFirst().text().contains("Repeated on two pages."));
+        assertEquals(List.of(
+                new DocumentSources.Unit("page", 1, "Repeated on two pages.\n"),
+                new DocumentSources.Unit("page", 3, "Repeated on two pages.\n"),
+                new DocumentSources.Unit("page", 4, "Only on the fourth page.\n")), units);
     }
 
     @Test void docxPreservesBodyOrderAndTableCells() throws Exception {

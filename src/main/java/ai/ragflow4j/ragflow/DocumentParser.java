@@ -1,6 +1,7 @@
 package ai.ragflow4j.ragflow;
 
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -9,6 +10,7 @@ import org.apache.poi.xwpf.usermodel.XWPFTable;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
@@ -66,13 +68,16 @@ public final class DocumentParser {
         try (var pdf = Loader.loadPDF(bytes)) {
             if (pdf.getNumberOfPages() > MAX_PDF_PAGES)
                 throw new IllegalArgumentException("PDF 页数超过 1000 页");
-            var stripper = new PDFTextStripper();
+            var text = new StringWriter();
+            var stripper = new PDFTextStripper() {
+                @Override
+                protected void endPage(PDPage page) {
+                    extraction.add("page", getCurrentPageNo(), text.toString());
+                    text.getBuffer().setLength(0);
+                }
+            };
             stripper.setSortByPosition(true);
-            for (int page = 1; page <= pdf.getNumberOfPages(); page++) {
-                stripper.setStartPage(page);
-                stripper.setEndPage(page);
-                extraction.add("page", page, stripper.getText(pdf));
-            }
+            stripper.writeText(pdf, text);
         } catch (InvalidPasswordException error) {
             throw new IllegalArgumentException("请上传已解密的 PDF", error);
         }
