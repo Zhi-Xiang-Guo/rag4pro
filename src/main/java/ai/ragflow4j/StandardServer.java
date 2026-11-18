@@ -2,6 +2,7 @@ package ai.ragflow4j;
 
 import ai.ragflow4j.ragflow.CorpusService;
 import ai.ragflow4j.ragflow.DocumentSources;
+import ai.ragflow4j.ragflow.DocumentParser;
 import ai.ragflow4j.ragflow.LocalChatModel;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.sun.net.httpserver.*;
@@ -20,6 +21,7 @@ public final class StandardServer implements AutoCloseable {
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final CorpusService corpus;
     private final DemoScenario demo;
+    private final DocumentIngestion ingestion;
     // 包括排队在内的上限；CPU/模型/目录仍有串行阶段，避免无界虚拟线程堆积。
     private final Semaphore admission;
     private final String apiToken;
@@ -34,6 +36,7 @@ public final class StandardServer implements AutoCloseable {
         if (maxInflight < 1 || maxInflight > 256) throw new IllegalArgumentException("maxInflight must be 1..256");
         this.corpus = corpus;
         this.demo = new DemoScenario();
+        this.ingestion = new DocumentIngestion(corpus, corpus.dataDirectory().resolve("ingestion"));
         this.admission = new Semaphore(maxInflight);
         this.apiToken = Objects.requireNonNullElse(apiToken, "");
         server = HttpServer.create(address, 32);
@@ -43,7 +46,8 @@ public final class StandardServer implements AutoCloseable {
 
     public InetSocketAddress address() { return server.getAddress(); }
 
-    public void start() {
+    public void start() throws IOException {
+        ingestion.start();
         server.start();
     }
 
@@ -106,18 +110,45 @@ public final class StandardServer implements AutoCloseable {
                 }
                 result = version;
             }
+            else if (path.equals("/api/ingestion") && method.equals("GET")) {
+                result = query.containsKey("jobId") ? ingestion.get(query.get("jobId")) : ingestion.list(dataset);
+                if (result == null) {
+                    respond(exchange, 404, Map.of("error", "找不到入库任务"));
+                    return;
+                }
+            } else if (path.equals("/api/ingestion") && method.equals("POST")) {
+                String contentType = Objects.toString(exchange.getRequestHeaders().getFirst("Content-Type"), "");
+                if (!contentType.split(";", 2)[0].strip().equalsIgnoreCase("application/octet-stream")) {
+                    respond(exchange, 415, Map.of("error", "请以二进制请求体上传文件"));
+                    return;
+                }
+                byte[] bytes = exchange.getRequestBody().readNBytes(DocumentParser.MAX_BYTES + 1);
+                if (bytes.length > DocumentParser.MAX_BYTES) {
+                    respond(exchange, 413, Map.of("error", "文件超过 16 MiB"));
+                    return;
+                }
+                respond(exchange, 202, ingestion.submit(query, bytes));
+                return;
+            } else if (path.equals("/api/ingestion/retry") && method.equals("POST")) {
+                var job = ingestion.retry(query.get("jobId"));
+                respond(exchange, job == null ? 404 : 202, job == null ? Map.of("error", "找不到入库任务") : job);
+                return;
+            }
             else if (path.equals("/api/datasets") && method.equals("GET"))
                 result = corpus.datasets();
             else if (path.equals("/api/datasets") && method.equals("DELETE")) {
-                corpus.deleteEmptyDataset(CorpusService.required(new HashMap<>(query), "datasetId"));
+                String id = CorpusService.required(new HashMap<>(query), "datasetId");
+                if (ingestion.pending(id, null)) throw new DocumentIngestion.Conflict("知识库有索引任务正在进行");
+                corpus.deleteEmptyDataset(id);
                 result = Map.of("deleted", true);
             } else if (path.equals("/api/documents") && method.equals("GET"))
                 result = corpus.documents(dataset);
             else if (path.equals("/api/chunks") && method.equals("GET"))
-                result = corpus.chunks(dataset, query.get("docId"));
+                result = corpus.chunks(dataset, query.get("docId"), Boolean.parseBoolean(query.get("context")));
             else if (path.equals("/api/documents") && method.equals("DELETE")) {
                 String doc = query.get("docId");
                 if (doc == null || doc.isBlank()) throw new IllegalArgumentException("docId 不能为空");
+                if (ingestion.pending(dataset, doc)) throw new DocumentIngestion.Conflict("文档正处理入库任务");
                 corpus.delete(dataset, doc);
                 result = Map.of("deleted", true);
             } else if (method.equals("POST")
@@ -158,6 +189,8 @@ public final class StandardServer implements AutoCloseable {
             respond(exchange, 200, result);
         } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
             respond(exchange, 400, Map.of("error", "JSON 格式无效"));
+        } catch (DocumentIngestion.Conflict error) {
+            respond(exchange, 409, Map.of("error", error.getMessage(), "requestId", requestId));
         } catch (IllegalArgumentException error) {
             respond(exchange, 400, Map.of("error", Objects.toString(error.getMessage(), "参数无效")));
         } catch (DemoScenario.Conflict error) {
@@ -259,6 +292,7 @@ public final class StandardServer implements AutoCloseable {
     @Override
     public void close() {
         server.stop(1);
+        ingestion.close();
         executor.shutdownNow();
     }
 }

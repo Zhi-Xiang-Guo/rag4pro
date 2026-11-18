@@ -809,11 +809,19 @@ public final class CorpusService {
         return document == null ? null : new LinkedHashMap<>(document);
     }
 
-    public synchronized List<Map<String, Object>> documents(String dataset) {
+    public java.nio.file.Path dataDirectory() {
+        return catalog.directory();
+    }
+
+    public boolean hasDataset(String id) {
+        return catalog.datasets().stream().anyMatch(dataset -> id.equals(dataset.get("datasetId")));
+    }
+
+    public List<Map<String, Object>> documents(String dataset) {
         return catalog.list(dataset);
     }
 
-    public synchronized List<Map<String, Object>> datasets() {
+    public List<Map<String, Object>> datasets() {
         return catalog.datasets();
     }
 

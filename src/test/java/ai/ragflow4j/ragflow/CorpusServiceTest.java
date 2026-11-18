@@ -3,11 +3,15 @@ package ai.ragflow4j.ragflow;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.ragflow4j.EmbeddingClient;
+import ai.ragflow4j.StandardServer;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.*;
 import com.sun.net.httpserver.HttpServer;
 
 import java.net.*;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -109,6 +113,59 @@ class CorpusServiceTest {
                         indexEmbedder,
                         new LocalChatModel(base, "fixture", 8192),
                         8192);
+    }
+
+    @Test
+    void ingestionStatusSurvivesRestartAndFailedReplacementKeepsActiveVersion() throws Exception {
+        corpus.saveDataset(Map.of("datasetId", "uploads", "name", "Uploads"));
+        String initial;
+        String failed;
+        try (var server = new StandardServer(new InetSocketAddress("127.0.0.1", 0), corpus, 8, "fixture-token")) {
+            server.start();
+            String endpoint = "http://127.0.0.1:" + server.address().getPort();
+            String upload = "/api/ingestion?datasetId=uploads&docId=guide&chunkTokenSize=64&filename=";
+            initial = workspaceCall(endpoint, upload + "guide.txt", "the usable source", 202).path("id").asText();
+            assertEquals("READY", waitForIngestion(endpoint, initial).path("status").asText());
+            assertEquals(initial, corpus.document("uploads", "guide").get("sourceRevision"));
+            failed = workspaceCall(endpoint, upload + "guide.pdf", "not a PDF", 202).path("id").asText();
+            assertEquals("FAILED", waitForIngestion(endpoint, failed).path("status").asText());
+            assertEquals(initial, corpus.document("uploads", "guide").get("sourceRevision"));
+            assertEquals("the usable source", workspaceCall(endpoint,
+                    "/api/document-source?datasetId=uploads&docId=guide&revision=" + initial, null, 200)
+                    .path("units").get(0).path("text").asText());
+        }
+        try (var reopened = new StandardServer(new InetSocketAddress("127.0.0.1", 0), corpus, 8, "fixture-token")) {
+            reopened.start();
+            String endpoint = "http://127.0.0.1:" + reopened.address().getPort();
+            var retry = workspaceCall(endpoint, "/api/ingestion/retry?jobId=" + failed, "", 202);
+            assertEquals(failed, retry.path("id").asText());
+            assertEquals(2, waitForIngestion(endpoint, failed).path("attempts").asInt());
+            assertEquals("READY", workspaceCall(endpoint, "/api/ingestion?jobId=" + initial, null, 200)
+                    .path("status").asText());
+        }
+    }
+
+    private JsonNode waitForIngestion(String endpoint, String id) throws Exception {
+        long deadline = System.nanoTime() + java.time.Duration.ofSeconds(10).toNanos();
+        do {
+            var job = workspaceCall(endpoint, "/api/ingestion?jobId=" + id, null, 200);
+            String status = job.path("status").asText();
+            if (status.equals("READY") || status.equals("FAILED")) return job;
+            Thread.sleep(20);
+        } while (System.nanoTime() < deadline);
+        throw new AssertionError("Job did not complete " + id);
+    }
+
+    private JsonNode workspaceCall(String endpoint, String path, String body, int status) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create(endpoint + path))
+                .header("Authorization", "Bearer fixture-token");
+        if (body != null) request.POST(HttpRequest.BodyPublishers.ofString(body))
+                .header("Content-Type", "application/octet-stream");
+        try (var client = HttpClient.newHttpClient()) {
+            var response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(status, response.statusCode(), response.body());
+            return JSON.readTree(response.body());
+        }
     }
 
     @AfterEach
