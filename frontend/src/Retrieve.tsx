@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
 import { contexts, excerpt, strategies, type Evidence } from './answers';
 import { EvidenceCard, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
 import { useResource, type DocumentRow } from './resources';
 import { compareChunks } from './retrievalComparison';
+import { downloadExperiment, readRecipe, type RetrievalArm, type RetrievalRecipe } from './retrievalRecipe';
 
 type Result = {
   hits: Evidence[]; evidence: Evidence[]; evidenceTokens: number; retrievalMs: number;
@@ -18,18 +19,22 @@ const stageLabels: Record<string, string> = {
   initial: '首次召回', relaxed: '放宽匹配', dense_fallback: '向量回退', rerank: '精排',
 };
 
-function StrategyFields({name, title, rerank}: {name: string; title: string; rerank: boolean}) {
-  const [strategy, setStrategy] = useState(name === 'baseline' ? 'standard' : 'rrf');
+const arms = [['baseline', '基线'], ['comparison', '对照']] as const;
+
+function StrategyFields({name, title, rerank, initial}: {
+  name: string; title: string; rerank: boolean; initial?: RetrievalArm;
+}) {
+  const [strategy, setStrategy] = useState<string>(initial?.strategy ?? (name === 'baseline' ? 'standard' : 'rrf'));
   return <fieldset className="strategy-fields">
     <legend>{title}</legend>
     <label>召回<select name={name + '-strategy'} value={strategy} onChange={event => setStrategy(event.target.value)}>
       {Object.entries(strategies).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
     </select></label>
-    <label>上下文<select name={name + '-context'} defaultValue={name === 'baseline' ? 'leaf' : 'parent'}>
+    <label>上下文<select name={name + '-context'} defaultValue={initial?.contextMode ?? 'leaf'}>
       {Object.entries(contexts).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
     </select></label>
-    {rerank && strategy === 'standard' && <label className="checkbox">
-      <input type="checkbox" name={name + '-rerank'} />精排
+    {(rerank || initial?.useReranker) && strategy === 'standard' && <label className="checkbox">
+      <input type="checkbox" name={name + '-rerank'} defaultChecked={initial?.useReranker} />精排
     </label>}
   </fieldset>;
 }
@@ -82,6 +87,9 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<SelectedSource>();
+  const [imported, setImported] = useState<{revision: number; recipe: RetrievalRecipe}>();
+  const formRef = useRef<HTMLFormElement>(null);
+  const importInput = useRef<HTMLInputElement>(null);
   const activeRun = useRef<AbortController>();
 
   useEffect(() => () => activeRun.current?.abort(), []);
@@ -92,32 +100,77 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
     setBusy(false);
   }
 
+  function currentRecipe(formElement: HTMLFormElement) {
+    if (!datasetAvailable || !documentAvailable) throw new Error('请先选择可用的知识库和文档范围。');
+    const form = new FormData(formElement);
+    const armFields = (name: string) => ({
+      strategy: form.get(name + '-strategy'),
+      contextMode: form.get(name + '-context'),
+      useReranker: form.has(name + '-rerank'),
+    });
+    return readRecipe({
+      version: 1, datasetId, docId: docId || undefined, question: form.get('question'),
+      topK: Number(form.get('topK')), candidateK: Number(form.get('candidateK')),
+      evidenceBudget: Number(form.get('budget')),
+      baseline: armFields('baseline'), comparison: armFields('comparison'),
+    });
+  }
+
+  function exportRecipe() {
+    if (!formRef.current?.reportValidity()) return;
+    try {
+      downloadExperiment('rag4pro-retrieval-recipe.json', currentRecipe(formRef.current));
+      setError('');
+    } catch (error) { setError(messageOf(error)); }
+  }
+
+  async function importRecipe(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      if (file.size > 16384) throw new Error('配置文件不能超过 16 KB。');
+      const recipe = readRecipe(JSON.parse(await file.text()));
+      if (activeRun.current) return;
+      setImported(old => ({revision: (old?.revision ?? 0) + 1, recipe}));
+      setParams(recipe.docId ? {datasetId: recipe.datasetId, docId: recipe.docId} : {datasetId: recipe.datasetId});
+      setError('');
+    } catch (error) { setError('导入失败。' + messageOf(error)); }
+  }
+
   async function compare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (activeRun.current) return;
-    const form = new FormData(event.currentTarget);
-    const question = String(form.get('question') ?? '').trim();
-    const topK = Number(form.get('topK')), candidateK = Number(form.get('candidateK'));
-    if (!datasetAvailable || !documentAvailable || !question) return;
-    if (topK > candidateK) return setError('候选池须不小于最终 Top K。');
+    let recipe: RetrievalRecipe;
+    try {
+      recipe = currentRecipe(event.currentTarget);
+      if (!rerank && (recipe.baseline.useReranker || recipe.comparison.useReranker)) {
+        throw new Error('当前服务未启用精排，请取消勾选精排或配置精排模型。');
+      }
+    } catch (error) {
+      setError(messageOf(error));
+      return;
+    }
     const controller = new AbortController();
     activeRun.current = controller;
     setError('');
     setSource(undefined);
     setResults([]);
     setBusy(true);
-    const scope = {datasetId, docId: docId || undefined};
-    setLastScope(scope);
-    const request = {...scope, question, topK, candidateK, evidenceBudget: Number(form.get('budget'))};
+    const request = {
+      datasetId: recipe.datasetId, docId: recipe.docId, question: recipe.question,
+      topK: recipe.topK, candidateK: recipe.candidateK, evidenceBudget: recipe.evidenceBudget,
+    };
+    setLastScope({datasetId: request.datasetId, docId: request.docId});
     try {
-      for (const [name, label] of [['baseline', '基线'], ['comparison', '对照']]) {
-        const strategy = String(form.get(name + '-strategy'));
-        const useReranker = form.has(name + '-rerank');
+      for (const [name, label] of arms) {
+        const arm = recipe[name];
+        const {strategy, useReranker} = arm;
         const row = {label, strategy, rerank: useReranker};
         let outcome: Comparison;
         try {
           const result = await api.json<Result>('/api/retrieve/context', 'POST', {
-            ...request, strategy, contextMode: form.get(name + '-context'), useReranker,
+            ...request, ...arm,
           }, controller.signal);
           outcome = {...row, result};
         } catch (error) {
@@ -137,7 +190,7 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
   return <section className="page">
     <header className="page-heading"><div><h1>检索实验</h1>
       <p className="muted">比较同一知识库、问题和候选预算下的命中与证据。</p></div></header>
-    <form className="panel stack" onSubmit={compare}>
+    <form className="panel stack" key={imported?.revision} ref={formRef} onSubmit={compare}>
       <div className="form-grid">
         <label>知识库<select value={datasetId} onChange={event => setParams({datasetId: event.target.value})} required>
           {!datasetAvailable && <option value={datasetId}>{datasetId && datasets.data ? '知识库不可用' : '请选择知识库'}</option>}
@@ -149,22 +202,26 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
           {!documentAvailable && <option value={docId}>{documents.loading ? '正在读取文档…' : '文档不可用'}</option>}
           {documents.data?.map(document => <option value={document.docId} key={document.docId}>{document.title}</option>)}
         </select></label>
-        <label>检索问题<input name="question" placeholder="输入要对照的问题" maxLength={2000} required /></label>
+        <label>检索问题<input name="question" defaultValue={imported?.recipe.question} placeholder="输入要对照的问题" maxLength={2000} required /></label>
       </div>
       <div className="form-grid">
-        <label>最终 Top K<input name="topK" type="number" defaultValue={8} min={1} max={50} required /></label>
-        <label>候选池<input name="candidateK" type="number" defaultValue={64} min={2} max={256} required /></label>
-        <label>证据预算（tokens）<input name="budget" type="number" defaultValue={1400} min={1} max={8192} required /></label>
+        <label>最终 Top K<input name="topK" type="number" defaultValue={imported?.recipe.topK ?? 8} min={1} max={50} required /></label>
+        <label>候选池<input name="candidateK" type="number" defaultValue={imported?.recipe.candidateK ?? 64} min={2} max={256} required /></label>
+        <label>证据预算（tokens）<input name="budget" type="number" defaultValue={imported?.recipe.evidenceBudget ?? 1400} min={1} max={8192} required /></label>
       </div>
       <div className="comparison-grid">
-        <StrategyFields name="baseline" title="基线" rerank={rerank} />
-        <StrategyFields name="comparison" title="对照" rerank={rerank} />
+        {arms.map(([name, title]) =>
+          <StrategyFields key={name} name={name} title={title} rerank={rerank} initial={imported?.recipe[name]} />)}
       </div>
       {(error || datasets.error || documents.error) && <p className="error" role="alert">
         {error || datasets.error || documents.error}</p>}
       <div className="actions"><button className="primary" disabled={busy || !datasetAvailable || !documentAvailable}>
         {busy ? '正在运行…' : '运行对照'}</button>
         {busy && <button type="button" onClick={cancel}>停止等待</button>}
+        <button type="button" disabled={busy} onClick={() => importInput.current?.click()}>导入配置</button>
+        <button type="button" disabled={busy || !datasetAvailable || !documentAvailable} onClick={exportRecipe}
+          title="配置文件包含检索问题和范围">导出配置</button>
+        <input type="file" hidden accept=".json,application/json" ref={importInput} onChange={importRecipe} />
       </div>
     </form>
     {lastScope && results.length > 0 && <div className="actions">
