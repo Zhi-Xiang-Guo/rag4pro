@@ -220,8 +220,15 @@ public final class StandardServer implements AutoCloseable {
     private boolean servePage(HttpExchange exchange, String path) throws IOException {
         if (path.matches("/app-assets/assets/[A-Za-z0-9_.-]+")) {
             return staticResource(exchange, "/react-workspace/" + path.substring("/app-assets/".length()),
-                    path.endsWith(".css") ? "text/css; charset=utf-8"
-                            : "text/javascript; charset=utf-8");
+                    switch (path.substring(path.lastIndexOf('.') + 1)) {
+                        case "css" -> "text/css; charset=utf-8";
+                        case "js", "mjs" -> "text/javascript; charset=utf-8";
+                        case "woff2" -> "font/woff2";
+                        case "woff" -> "font/woff";
+                        case "png" -> "image/png";
+                        case "svg" -> "image/svg+xml";
+                        default -> "application/octet-stream";
+                    });
         }
         boolean workspace = path.equals("/") || path.equals("/chat") || path.startsWith("/chat/")
                 || path.equals("/knowledge") || path.startsWith("/knowledge/") || path.equals("/retrieve");

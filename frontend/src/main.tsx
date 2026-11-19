@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { ArrowUpRight, BookOpen, ChartNoAxesColumnIncreasing, Database, KeyRound, MessageSquare, ScanText } from 'lucide-react';
-import { apiClient, messageOf, savedToken, saveToken, type ApiClient, type Dataset, type ServiceStatus } from './api';
-import { Table } from './components/Table';
+import { apiClient, savedToken, saveToken, type ServiceStatus } from './api';
+import Knowledge from './Knowledge';
 import './styles.css';
 
 const pages = [
@@ -11,30 +11,6 @@ const pages = [
   {to: '/knowledge', title: '知识库', icon: Database},
   {to: '/retrieve', title: '检索实验', icon: ChartNoAxesColumnIncreasing},
 ];
-
-function Catalog({api}: {api: ApiClient}) {
-  const [items, setItems] = useState<Dataset[]>([]);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const controller = new AbortController();
-    api.json<Dataset[]>('/api/datasets', 'GET', undefined, controller.signal).then(setItems).catch(error => {
-      if (!controller.signal.aborted) setError(messageOf(error));
-    });
-    return () => controller.abort();
-  }, [api]);
-  return (
-    <section className="page">
-      <header className="page-heading"><h1>知识库</h1></header>
-      {error && <p role="alert" className="error">{error}</p>}
-      <Table>
-        <thead><tr><th>名称</th><th>文档</th><th>分块策略</th></tr></thead>
-        <tbody>{items.map(item => <tr key={item.datasetId}><td>{item.name}</td><td>{item.documentCount}</td>
-          <td>{item.chunkStrategy ?? 'general'}</td></tr>)}</tbody>
-      </Table>
-      {!error && !items.length && <p className="empty"><BookOpen size={20} /> 暂无知识库</p>}
-    </section>
-  );
-}
 
 function Workspace() {
   const [token, setToken] = useState(savedToken);
@@ -74,7 +50,7 @@ function Workspace() {
       <main className="main">
         <Routes>
           <Route path="/" element={<Navigate to="/chat" replace />} />
-          <Route path="/knowledge/*" element={<Catalog key={token} api={api} />} />
+          <Route path="/knowledge/*" element={<Knowledge key={token} api={api} />} />
           <Route path="/chat/*" element={<section className="page"><h1>对话</h1><a href="/workspace-legacy">打开对话工作台</a></section>} />
           <Route path="/retrieve" element={<section className="page"><h1>检索实验</h1><a href="/workspace-legacy">打开检索实验</a></section>} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
