@@ -107,17 +107,17 @@ function DocumentEditor({api, dataset, document, source, close, done}: {
     try {
       const pasted = String(form.get('text') ?? '');
       const title = String(form.get('title') ?? '').trim();
+      const format = String(form.get('format') || 'txt');
       let name = file?.name;
       let bytes: Blob | undefined = file;
-      if (!bytes && pasted.trim()) {
-        const format = String(form.get('format') || 'txt');
-        name = (title || '文档') + '.' + format;
-        bytes = new Blob([pasted], {type: 'text/plain;charset=utf-8'});
-      }
-      if (!bytes && source && document && !canPaste) {
+      if (!bytes && source && document
+          && (!canPaste || (format === source.format && pasted === source.units[0]?.text))) {
         name = source.name;
         const original = await api.request(sourceUrl({datasetId, docId: document.docId, revision: source.revision}, true));
         bytes = await original.blob();
+      } else if (!bytes && pasted.trim()) {
+        name = (title || '文档') + '.' + format;
+        bytes = new Blob([pasted], {type: 'text/plain;charset=utf-8'});
       }
       if (!bytes || !name) throw new Error('请选择文件或输入文本。');
       if (bytes.size > 16 * 1024 * 1024) throw new Error('文件超过 16 MiB。');
