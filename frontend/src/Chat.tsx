@@ -8,9 +8,9 @@ import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
 import { contexts, strategies, streamAnswer, type Answer } from './answers';
 import { AnswerSources, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
 import { useResource } from './resources';
-import { decodeHistory, historyKey, type Message, type Session, type History } from './conversations';
+import { decodeHistory, historyKey, recentHistory, type Message, type Session, type History } from './conversations';
 
-type Running = {streamId: string; controller: AbortController; streaming: boolean; target: Session; question: string};
+type Running = {streamId: string; controller: AbortController; streaming: boolean; target: Session; message: Message};
 function loadHistory(): History {
   try { return decodeHistory(localStorage.getItem(historyKey)); }
   catch { return decodeHistory(null); }
@@ -52,7 +52,7 @@ export default function Chat({api}: {api: ApiClient}) {
   const [answerMode, setAnswerMode] = useState('standard');
   const [strategy, setStrategy] = useState('rrf');
   const [contextMode, setContextMode] = useState('parent');
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<Running>();
   const [live, setLive] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -67,6 +67,9 @@ export default function Chat({api}: {api: ApiClient}) {
   const docId = requestedDataset ? params.get('docId') ?? undefined : saved?.docId;
   const session = saved?.datasetId === datasetId && saved.docId === docId ? saved : undefined;
   const messages = session?.messages ?? [];
+  const busy = !!pending;
+  const showingPending = pending && pending.target.datasetId === datasetId && pending.target.docId === docId;
+  const visibleMessages = showingPending ? [...messages, pending.message] : messages;
   const assistant = messages.find(message => message.id === inspection?.messageId)
     ?? [...messages].reverse().find(message => message.role === 'assistant');
   const selectedIndex = assistant?.id === inspection?.messageId ? inspection?.index : undefined;
@@ -82,7 +85,7 @@ export default function Chat({api}: {api: ApiClient}) {
   useEffect(() => {
     const area = messageList.current;
     if (area) area.scrollTop = area.scrollHeight;
-  }, [messages, live]);
+  }, [messages, pending, live]);
 
   function newChat(nextDataset = datasetId, nextDocument = docId) {
     setHistory(old => ({...old, currentId: ''}));
@@ -106,8 +109,8 @@ export default function Chat({api}: {api: ApiClient}) {
     if (!run) return;
     active.current = undefined;
     cancel(api, run);
-    updateMessages(run.target);
-    setQuestion(run.question); setLive(''); setBusy(false); setNotice('已停止生成。');
+    setQuestion(draft => draft || run.message.content);
+    setLive(''); setPending(undefined); setNotice('已停止生成。');
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -116,18 +119,16 @@ export default function Chat({api}: {api: ApiClient}) {
     if (!text || !datasetId || active.current) return;
     const target: Session = session ?? {id: crypto.randomUUID(), title: text.slice(0, 38), datasetId, docId, messages: []};
     const user: Message = {id: crypto.randomUUID(), role: 'user', content: text};
-    const updated = {...target, messages: [...target.messages, user]};
     const request = {
       datasetId, docId, answerMode, strategy, contextMode, evidenceBudget: 1800, topK: 8, candidateK: 64,
       refineMultiturn: true, emptyResponse: '知识库里没有找到能支持回答的内容。',
-      messages: updated.messages.slice(-12).map(({role, content}) => ({role, content})),
+      messages: recentHistory(target.messages, text),
       metadataFilter: target.version ? {method: 'manual', manual: [{key: 'version', op: '=', value: target.version}]} : undefined,
     };
     const run: Running = {streamId: crypto.randomUUID(), controller: new AbortController(),
-      streaming: answerMode === 'standard', target, question: text};
+      streaming: answerMode === 'standard', target, message: user};
     active.current = run;
-    updateMessages(updated);
-    setBusy(true); setQuestion(''); setLive(''); setError(''); setNotice(''); setInspection(undefined);
+    setPending(run); setQuestion(''); setLive(''); setError(''); setNotice(''); setInspection(undefined);
     try {
       const result = run.streaming ? await streamAnswer(api, run.streamId, request, run.controller.signal,
         delta => { if (active.current === run) setLive(current => current + delta); })
@@ -135,18 +136,17 @@ export default function Chat({api}: {api: ApiClient}) {
       if (active.current !== run || run.controller.signal.aborted) return;
       const reply: Message = {id: crypto.randomUUID(), role: 'assistant', content: result.answer,
         reference: result.reference, model: result.model};
-      updateMessages({...updated, messages: [...updated.messages, reply]});
+      updateMessages({...target, messages: [...target.messages, user, reply]});
       if (result.warnings?.length) setNotice(result.warnings.join(' · '));
     } catch (error) {
       if (active.current === run) {
-        updateMessages(target);
-        setQuestion(text);
+        setQuestion(draft => draft || text);
         if (!run.controller.signal.aborted) setError(messageOf(error));
       }
     } finally {
       if (active.current === run) {
         active.current = undefined;
-        setLive(''); setBusy(false);
+        setLive(''); setPending(undefined);
       }
     }
   }
@@ -163,12 +163,12 @@ export default function Chat({api}: {api: ApiClient}) {
     <div className="chat-center">
       <header className="chat-heading"><h1>对话</h1>{docId && <span className="scope-chip">单篇文档</span>}</header>
       <div className="conversation-scroll" ref={messageList}>
-        {!messages.length && <div className="welcome">
+        {!visibleMessages.length && <div className="welcome">
           <span className="welcome-icon"><ScanText size={24} /></span><h2>向知识库提问</h2>
           <p>用文档回答问题，点开引用核对原文。</p>
           <Link className="button" to="/knowledge">管理知识库</Link>
         </div>}
-        {messages.map(message => message.role === 'user'
+        {visibleMessages.map(message => message.role === 'user'
           ? <article key={message.id} className="chat-message user">{message.content}</article>
           : <AssistantMessage key={message.id} message={message}
               onCitation={index => {
@@ -177,7 +177,7 @@ export default function Chat({api}: {api: ApiClient}) {
                 const spans = message.reference?.spans?.filter(item => item.citationIndex === index);
                 if (chunk) setReading({chunk, spans, datasetId});
               }} />)}
-        {busy && <article className="chat-message assistant" aria-live="polite">
+        {showingPending && <article className="chat-message assistant" aria-live="polite">
           <header><span className="assistant-icon"><ScanText size={14} /></span><strong>rag4pro</strong></header>
           {live ? <p className="live-answer">{live}</p> : <p className="muted">正在检索并生成回答…</p>}
         </article>}

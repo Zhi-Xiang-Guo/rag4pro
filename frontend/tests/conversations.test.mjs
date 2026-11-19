@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {decodeHistory} from '../src/conversations.ts';
+import {decodeHistory, recentHistory} from '../src/conversations.ts';
 
 test('loads valid saved chats around damaged entries', () => {
   const history = decodeHistory(JSON.stringify({currentId: 'chat', sessions: [
@@ -30,4 +30,17 @@ test('loads valid saved chats around damaged entries', () => {
 test('clears missing selected sessions and ignores unreadable saved data', () => {
   assert.deepEqual(decodeHistory('{'), {currentId: '', sessions: []});
   assert.deepEqual(decodeHistory(JSON.stringify({currentId: 'gone', sessions: []})), {currentId: '', sessions: []});
+});
+
+test('request context keeps complete recent turns and the new question', () => {
+  const messages = [{role: 'assistant', content: 'orphan'}];
+  for (let turn = 1; turn <= 7; turn += 1) {
+    messages.push({role: 'user', content: 'q' + turn}, {role: 'assistant', content: 'a' + turn});
+  }
+  messages.push({role: 'user', content: 'unfinished'});
+  const history = recentHistory(messages, 'next');
+  assert.equal(history.length, 11);
+  assert.deepEqual(history.slice(0, 2), [{role: 'user', content: 'q3'}, {role: 'assistant', content: 'a3'}]);
+  assert.deepEqual(history.at(-1), {role: 'user', content: 'next'});
+  assert.ok(history.every(message => !['orphan', 'unfinished'].includes(message.content)));
 });

@@ -71,3 +71,20 @@ export function decodeHistory(stored: string | null): History {
   } catch { /* A damaged cache can be discarded. */ }
   return {sessions: [], currentId: ''};
 }
+
+export function recentHistory(messages: readonly Message[], question: string) {
+  const completed: Pick<Message, 'role' | 'content'>[][] = [];
+  let user: Message | undefined;
+  for (const message of messages) {
+    if (message.role === 'user') {
+      user = message;
+    } else if (user) {
+      completed.push([
+        {role: 'user', content: user.content},
+        {role: 'assistant', content: message.content},
+      ]);
+      user = undefined;
+    }
+  }
+  return [...completed.slice(-5).flat(), {role: 'user' as const, content: question}];
+}
