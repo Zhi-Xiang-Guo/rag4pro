@@ -4,21 +4,16 @@ import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
 import { contexts, excerpt, strategies, type Evidence } from './answers';
 import { EvidenceCard, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
 import { useResource, type DocumentRow } from './resources';
-import { compareChunks } from './retrievalComparison';
+import { compareChunks, describeStage } from './retrievalComparison';
 import { downloadExperiment, readRecipe, type RetrievalArm, type RetrievalRecipe } from './retrievalRecipe';
 
 type Result = {
   hits: Evidence[]; evidence: Evidence[]; evidenceTokens: number; retrievalMs: number;
-  contextMode: string; trace: Record<string, unknown>[];
+  contextMode: string; total: number; trace: Record<string, unknown>[];
 };
 type Comparison = {label: string; strategy: string; rerank: boolean} & (
   {result: Result; error?: never} | {result?: never; error: string}
 );
-const stageLabels: Record<string, string> = {
-  lexical_independent: 'BM25 召回', dense_independent: '向量召回', independent_rank: '排名融合',
-  initial: '首次召回', relaxed: '放宽匹配', dense_fallback: '向量回退', rerank: '精排',
-};
-
 const arms = [['baseline', '基线'], ['comparison', '对照']] as const;
 
 function StrategyFields({name, title, rerank, initial}: {
@@ -233,8 +228,11 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
       {results.map(({label, strategy, rerank, result, error}) => <article key={label} className="panel">
         <h2>{label} · {strategies[strategy]}{rerank && ' + 精排'}</h2>
         {result ? <>
-        <p className="muted">{contexts[result.contextMode]} · {result.hits.length} 个命中 · {result.evidenceTokens} tokens ·
-          {' '}{Math.round(result.retrievalMs)} ms</p>
+        <p className="muted">{contexts[result.contextMode]} · {result.hits.length} 个命中 ·
+          {' '}{result.evidence.length} 个证据块 · {result.evidenceTokens} tokens · 召回 {Math.round(result.retrievalMs)} ms</p>
+        <p className="muted">{strategy === 'standard'
+          ? (rerank ? '得分为模型与词法的加权分。' : '得分为候选向量与词法的加权分。')
+          : '得分按召回名次计算。'}</p>
         <h3>召回命中</h3>
         {result.hits.length === 0 && <p className="muted">未召回文档块。</p>}
         {result.hits.map((chunk, index) => <EvidenceCard key={chunk.id ?? index} chunk={chunk} index={index}
@@ -245,10 +243,10 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
           onOriginal={chunk.source && chunk.document_external_id ? () => setSource({chunk}) : undefined} />)}
         {!!result.trace.length && <details className="retrieval-stages">
           <summary>查看检索阶段</summary>
-          <ol>{result.trace.map((step, index) => <li key={index}>
-            {stageLabels[String(step.stage)] ?? String(step.stage ?? '检索')}
-            {typeof step.durationMs === 'number' ? ' · ' + Math.round(step.durationMs) + ' ms' : ''}
-          </li>)}</ol>
+          <ol>{result.trace.map((step, index) => {
+            const {label, details} = describeStage(step);
+            return <li key={index}>{[label, ...details].join(' · ')}</li>;
+          })}</ol>
         </details>}
         </> : <p className="error">{error}</p>}
       </article>)}

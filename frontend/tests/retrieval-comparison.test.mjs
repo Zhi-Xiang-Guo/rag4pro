@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { compareChunks } from '../src/retrievalComparison.ts';
+import { compareChunks, describeStage } from '../src/retrievalComparison.ts';
 
 test('compares stable chunk identity and preserves the first rank', () => {
   const baseline = [{id: 'a'}, {id: 'a'}, {id: 'b'}, {content: 'unidentified'}];
@@ -20,4 +20,14 @@ test('counts exclusive chunks when the other side has no hits', () => {
     comparisonOnly: 0,
     changes: [{id: 'a', chunk: {id: 'a'}, baseline: 1}],
   });
+});
+
+test('selects numeric trace diagnostics and excludes raw engine requests', () => {
+  const first = describeStage({stage: 'initial', total: 0, returned: 0, durationMs: 2.04, request: {vector: [1, 2]}});
+  assert.deepEqual(first, {label: '首次召回', details: ['引擎匹配 0', '返回 0', '2.0 ms']});
+  const final = describeStage({stage: 'independent_rank', candidates: 8, rrfK: 60,
+    documentDiversity: true, thresholdApplied: false});
+  assert.deepEqual(final.details, ['候选 8', 'RRF 常数 60', '未使用相似度阈值', '优先覆盖不同文档']);
+  assert.deepEqual(describeStage({stage: 'future', candidates: NaN, total: {value: 200}}),
+    {label: 'future', details: []});
 });
