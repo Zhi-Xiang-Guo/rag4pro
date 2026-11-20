@@ -322,6 +322,7 @@ function DocumentDetail({api}: {api: ApiClient}) {
       <div><h1>{document?.title ?? job?.title ?? docId}</h1>{(document || job) && <StatusChip document={document} job={job} />}</div>
       <div className="actions">
         {document && <Link to={withQuery('/chat', {datasetId, docId})} className="button">就此文档提问</Link>}
+        {document && <Link to={withQuery('/retrieve', {datasetId, docId})} className="button">查看文档检索</Link>}
         {editorDocument && <button className="primary" disabled={isPending(job)} onClick={() => setEditing(editorDocument)}>
           {latest ? '修订与重建' : '上传原件'}</button>}
         {document && <button disabled={isPending(job)} onClick={() => void remove()}>移除文档</button>}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { messageOf, withQuery, type ApiClient } from './api';
+import { ApiError, messageOf, withQuery, type ApiClient } from './api';
 
 export type DocumentRow = {
   datasetId: string; docId: string; title: string; chunkCount: number;
@@ -62,18 +62,28 @@ export function useDocuments(api: ApiClient, datasetId: string, refresh: number)
   useEffect(() => {
     const controller = new AbortController();
     let timer = 0;
+    let retryDelay = 2000;
     const fetchData = async () => {
       try {
         const query = {datasetId};
-        const [documents, jobs] = await Promise.all([
-          api.json<DocumentRow[]>(withQuery('/api/documents', query), 'GET', undefined, controller.signal),
-          api.json<Job[]>(withQuery('/api/ingestion', query), 'GET', undefined, controller.signal),
-        ]);
+        // READY is written after the document catalog, so read the jobs before the documents.
+        const jobs = await api.json<Job[]>(withQuery('/api/ingestion', query), 'GET', undefined, controller.signal);
+        const documents = await api.json<DocumentRow[]>(
+          withQuery('/api/documents', query), 'GET', undefined, controller.signal);
         if (controller.signal.aborted) return;
+        retryDelay = 2000;
         setResult({datasetId, documents, jobs, error: ''});
         if (jobs.some(isPending)) timer = window.setTimeout(fetchData, 1200);
       } catch (error) {
-        if (!controller.signal.aborted) setResult(old => ({...old, datasetId, error: messageOf(error)}));
+        if (controller.signal.aborted) return;
+        setResult(old => ({
+          datasetId, documents: old.datasetId === datasetId ? old.documents : [],
+          jobs: old.datasetId === datasetId ? old.jobs : [], error: messageOf(error),
+        }));
+        if (!(error instanceof ApiError) || error.status === 429 || error.status >= 500) {
+          timer = window.setTimeout(fetchData, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 8000);
+        }
       }
     };
     void fetchData();
