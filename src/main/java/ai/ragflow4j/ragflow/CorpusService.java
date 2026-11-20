@@ -668,7 +668,13 @@ public final class CorpusService {
     /**
      * 问答主线：整理问题 → 检索 → 父块回填 → metadata 补充 → 上下文预算 → 模型与引用。
      */
-    public synchronized Map<String, Object> answer(Map<String, Object> input) throws Exception {
+    public Map<String, Object> answer(Map<String, Object> input) throws Exception {
+        return answer(input, null);
+    }
+
+    public synchronized Map<String, Object> answer(Map<String, Object> input, ChatPipeline.Stream stream)
+            throws Exception {
+        if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
         String answerMode = string(input, "answerMode", "standard");
         if (!Set.of("standard", "extractive").contains(answerMode))
             throw new IllegalArgumentException("answerMode 必须为 standard 或 extractive");
@@ -735,7 +741,7 @@ public final class CorpusService {
                     ? "资料不足，无法回答。" : "No supporting evidence was found in the knowledge base.";
             result = extractiveChat.complete(questionsForEvidence, sources, refusal, quote);
         } else {
-            result = generateAnswer(input, messages, sources, quote);
+            result = generateAnswer(input, messages, sources, quote, stream);
         }
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("answer", result.answer());
@@ -764,7 +770,8 @@ public final class CorpusService {
     }
 
     private ChatPipeline.Result generateAnswer(Map<String, Object> input, List<ContextBuilder.Message> messages,
-                                               ChatPipeline.Retrieval sources, boolean quote) throws Exception {
+                                               ChatPipeline.Retrieval sources, boolean quote,
+                                               ChatPipeline.Stream stream) throws Exception {
         String system =
                 string(
                         input,
@@ -797,7 +804,7 @@ public final class CorpusService {
                         true,
                         "",
                         false);
-        return chat.complete(config, sources);
+        return chat.complete(config, sources, stream);
     }
 
     public DocumentSources sources() {

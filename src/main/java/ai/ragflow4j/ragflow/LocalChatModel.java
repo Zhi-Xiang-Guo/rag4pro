@@ -1,9 +1,13 @@
 package ai.ragflow4j.ragflow;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.*;
 import java.time.Duration;
@@ -136,7 +140,12 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
 
     private String payload(List<ContextBuilder.Message> messages, Map<String, Object> generation,
                            Map<String, Object> schema) throws IOException {
-        Map<String, Object> body = new LinkedHashMap<>(Map.of("model", model, "messages", messages, "stream", false));
+        return payload(messages, generation, schema, false);
+    }
+
+    private String payload(List<ContextBuilder.Message> messages, Map<String, Object> generation,
+                           Map<String, Object> schema, boolean streaming) throws IOException {
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("model", model, "messages", messages, "stream", streaming));
         if (openAi) {
             generation.forEach((key, value) -> {
                 String parameter = key.equals("num_predict") ? "max_tokens" : key;
@@ -163,12 +172,103 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
     }
 
     private HttpResponse<String> send(String payload, Duration timeout) throws IOException, InterruptedException {
+        return client.send(request(payload, timeout).build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpRequest.Builder request(String payload, Duration timeout) {
         var request = HttpRequest.newBuilder(endpoint)
                 .timeout(timeout)
                 .header("Content-Type", "application/json");
         if (openAi) request.header("Authorization", "Bearer " + apiKey);
-        return client.send(request.POST(HttpRequest.BodyPublishers.ofString(payload)).build(),
-                HttpResponse.BodyHandlers.ofString());
+        return request.POST(HttpRequest.BodyPublishers.ofString(payload));
+    }
+
+    @Override
+    public ChatPipeline.ModelAnswer stream(List<ContextBuilder.Message> messages, Map<String, Object> generation,
+                                           ChatPipeline.Stream output) throws Exception {
+        var request = request(payload(messages, generation, null, true), Duration.ofMinutes(5))
+                .header("Accept", openAi ? "text/event-stream" : "application/x-ndjson");
+        var response = client.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
+        try (var body = response.body();
+             var reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
+            if (response.statusCode() != 200) throw new Unavailable(response.statusCode(), 1);
+            output.attach(body);
+            var answer = new StreamingAnswer();
+            if (openAi) readOpenAi(reader, output, answer);
+            else readOllama(reader, output, answer);
+            if (!answer.finished) throw new IOException("聊天模型在完成前断开");
+            return answer.result();
+        }
+    }
+
+    private void readOpenAi(BufferedReader reader, ChatPipeline.Stream output, StreamingAnswer answer)
+            throws IOException {
+        var event = new StringBuilder();
+        for (String line; (line = reader.readLine()) != null; ) {
+            if (line.isEmpty() && !event.isEmpty()) {
+                if (openAiEvent(event.toString(), output, answer)) return;
+                event.setLength(0);
+            } else if (line.startsWith("data:")) {
+                if (!event.isEmpty()) event.append('\n');
+                event.append(line.substring(5).stripLeading());
+            }
+        }
+        if (!event.isEmpty()) openAiEvent(event.toString(), output, answer);
+    }
+
+    private boolean openAiEvent(String event, ChatPipeline.Stream output, StreamingAnswer answer) throws IOException {
+        if (event.strip().equals("[DONE]")) {
+            answer.finished = true;
+            return true;
+        }
+        JsonNode node = streamNode(event);
+        var choice = node.path("choices").path(0);
+        answer.append(choice.path("delta"), "reasoning_content", output);
+        if (choice.hasNonNull("finish_reason")) answer.finished = true;
+        if (node.path("usage").isObject()) answer.usage = usage(node);
+        return false;
+    }
+
+    private void readOllama(BufferedReader reader, ChatPipeline.Stream output, StreamingAnswer answer) throws IOException {
+        for (String line; (line = reader.readLine()) != null; ) {
+            if (line.isBlank()) continue;
+            var node = streamNode(line);
+            answer.append(node.path("message"), "thinking", output);
+            if (node.path("done").asBoolean()) {
+                answer.usage = usage(node);
+                answer.finished = true;
+                return;
+            }
+        }
+    }
+
+    private JsonNode streamNode(String text) throws IOException {
+        var node = json.readTree(text);
+        if (node == null || !node.isObject() || node.hasNonNull("error"))
+            throw new IOException("聊天模型返回无效的流式响应");
+        return node;
+    }
+
+    private static final class StreamingAnswer {
+        final StringBuilder text = new StringBuilder();
+        final StringBuilder reasoning = new StringBuilder();
+        Map<String, Object> usage = Map.of();
+        boolean finished;
+
+        void append(JsonNode item, String reasoningField, ChatPipeline.Stream output) throws IOException {
+            reasoning.append(item.path(reasoningField).asText(""));
+            String content = item.path("content").asText("");
+            if (!content.isEmpty()) {
+                text.append(content);
+                output.delta(content);
+            }
+        }
+
+        ChatPipeline.ModelAnswer result() throws IOException {
+            if (text.toString().isBlank() && reasoning.toString().isBlank())
+                throw new IOException("聊天模型返回空回答");
+            return new ChatPipeline.ModelAnswer(text.toString(), reasoning.toString(), usage);
+        }
     }
 
     private ChatPipeline.ModelAnswer decode(String payload) throws IOException {
@@ -179,15 +279,17 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
         String answer = message.path("content").asText("");
         String reasoning = message.path(openAi ? "reasoning_content" : "thinking").asText("");
         if (answer.isBlank() && reasoning.isBlank()) throw new IllegalStateException("聊天模型返回空回答");
+        return new ChatPipeline.ModelAnswer(answer, reasoning, usage(result));
+    }
+
+    private Map<String, Object> usage(JsonNode result) {
         if (openAi) {
             var usage = result.path("usage");
-            return new ChatPipeline.ModelAnswer(answer, reasoning,
-                    usage.isObject() ? json.convertValue(usage, new TypeReference<>() {}) : Map.of());
+            return usage.isObject() ? json.convertValue(usage, new TypeReference<>() {}) : Map.of();
         }
         int prompt = result.path("prompt_eval_count").asInt(),
                 completion = result.path("eval_count").asInt();
-        Map<String, Object> usage =
-                prompt == 0 && completion == 0
+        return prompt == 0 && completion == 0
                         ? Map.of()
                         : Map.of(
                         "prompt_tokens",
@@ -196,7 +298,6 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
                         completion,
                         "total_tokens",
                         prompt + completion);
-        return new ChatPipeline.ModelAnswer(answer, reasoning, usage);
     }
 
     public String model() {

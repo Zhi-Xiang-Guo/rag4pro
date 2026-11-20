@@ -10,6 +10,8 @@ package ai.ragflow4j.ragflow;
 
 import ai.ragflow4j.ragflow.ContextBuilder.Message;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,6 +29,10 @@ public final class ChatPipeline {
     @FunctionalInterface
     public interface ChatModel {
         ModelAnswer complete(List<Message> messages, Map<String, Object> generation) throws Exception;
+
+        default ModelAnswer stream(List<Message> messages, Map<String, Object> generation, Stream output) throws Exception {
+            throw new UnsupportedOperationException("聊天模型不支持流式回答");
+        }
     }
 
     public record ModelAnswer(String answer, String reasoning, Map<String, Object> usage) {
@@ -107,7 +113,16 @@ public final class ChatPipeline {
         this.hydrator = hydrator;
     }
 
+    public interface Stream {
+        void delta(String text) throws IOException;
+        void attach(InputStream upstream) throws IOException;
+    }
+
     public Result complete(Request request, Retrieval retrieval) throws Exception {
+        return complete(request, retrieval, null);
+    }
+
+    public Result complete(Request request, Retrieval retrieval, Stream stream) throws Exception {
         validate(request);
         // 先按原版 97% 规则选知识块；下方 prepare 还会对完整消息再次做预算处理。
         List<String> knowledge = context.knowledge(retrieval.chunks(), request.modelMaxTokens());
@@ -134,7 +149,8 @@ public final class ChatPipeline {
         // 没走空知识固定回复时，才真正请求回答模型。
         Prepared prepared = prepare(request, knowledge);
         long modelStarted = System.nanoTime();
-        ModelAnswer response = model.complete(prepared.messages(), prepared.generation());
+        ModelAnswer response = stream == null ? model.complete(prepared.messages(), prepared.generation())
+                : model.stream(prepared.messages(), prepared.generation(), stream);
         double modelMs = (System.nanoTime() - modelStarted) / 1e6;
         long citationStarted = System.nanoTime();
         if (response == null || response.answer() == null)

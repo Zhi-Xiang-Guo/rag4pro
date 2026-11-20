@@ -1,6 +1,7 @@
 package ai.ragflow4j;
 
 import ai.ragflow4j.ragflow.CorpusService;
+import ai.ragflow4j.ragflow.ChatPipeline;
 import ai.ragflow4j.ragflow.DocumentSources;
 import ai.ragflow4j.ragflow.DocumentParser;
 import ai.ragflow4j.ragflow.LocalChatModel;
@@ -8,6 +9,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.sun.net.httpserver.*;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -22,6 +25,9 @@ public final class StandardServer implements AutoCloseable {
     private final CorpusService corpus;
     private final DemoScenario demo;
     private final DocumentIngestion ingestion;
+    private final Map<UUID, AnswerStream> streams = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService streamDeadlines = Executors.newSingleThreadScheduledExecutor(
+            Thread.ofVirtual().name("chat-stream-timeout").factory());
     // 包括排队在内的上限；CPU/模型/目录仍有串行阶段，避免无界虚拟线程堆积。
     private final Semaphore admission;
     private final String apiToken;
@@ -66,6 +72,13 @@ public final class StandardServer implements AutoCloseable {
                         authorization.getBytes(StandardCharsets.UTF_8),
                         ("Bearer " + apiToken).getBytes(StandardCharsets.UTF_8))) {
                     respond(exchange, 401, Map.of("error", "unauthorized", "requestId", requestId));
+                    return;
+                }
+                if (path.equals("/api/chat/stream") && method.equals("DELETE")) {
+                    UUID id = UUID.fromString(query(exchange).getOrDefault("streamId", ""));
+                    var stream = streams.get(id);
+                    if (stream != null) stream.cancel();
+                    respond(exchange, 200, Map.of("cancelled", stream != null));
                     return;
                 }
                 admitted = admission.tryAcquire();
@@ -153,7 +166,7 @@ public final class StandardServer implements AutoCloseable {
                 result = Map.of("deleted", true);
             } else if (method.equals("POST")
                     && Set.of("/api/datasets", "/api/documents", "/api/documents/batch", "/api/chunk-preview",
-                            "/api/retrieve", "/api/retrieve/context", "/api/chat", "/api/demo/chat")
+                            "/api/retrieve", "/api/retrieve/context", "/api/chat", "/api/chat/stream", "/api/demo/chat")
                     .contains(path)) {
                 String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
                 if (contentType == null
@@ -169,6 +182,12 @@ public final class StandardServer implements AutoCloseable {
                 Map<String, Object> input = Json.MAPPER.readValue(bytes, new TypeReference<>() {
                 });
                 if (input == null) throw new IllegalArgumentException("JSON 请求体为空");
+                if (path.equals("/api/chat/stream")) {
+                    String supplied = query.get("streamId");
+                    UUID id = supplied == null ? UUID.randomUUID() : UUID.fromString(supplied);
+                    streamAnswer(exchange, id, input);
+                    return;
+                }
                 // HTTP 层只处理协议与参数边界；三个业务入口都由 CorpusService 编排。
                 // 初次阅读检索时，从 /api/retrieve 分支进入 corpus.retrieve 即可。
                 result =
@@ -214,6 +233,77 @@ public final class StandardServer implements AutoCloseable {
                     + " path=" + exchange.getRequestURI().getPath() + " durationMs="
                     + ((System.nanoTime() - started) / 1_000_000));
             exchange.close();
+        }
+    }
+
+    private void streamAnswer(HttpExchange exchange, UUID id, Map<String, Object> input) throws IOException {
+        var stream = new AnswerStream(exchange.getResponseBody());
+        if (streams.putIfAbsent(id, stream) != null) {
+            respond(exchange, 409, Map.of("error", "此流式请求已在执行"));
+            return;
+        }
+        ScheduledFuture<?> deadline = streamDeadlines.schedule(stream::cancel, 5, TimeUnit.MINUTES);
+        try {
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
+            exchange.getResponseHeaders().set("Cache-Control", "no-store");
+            exchange.getResponseHeaders().set("X-Accel-Buffering", "no");
+            exchange.sendResponseHeaders(200, 0);
+            stream.event("start", Map.of("streamId", id.toString()));
+            var result = corpus.answer(input, stream);
+            stream.event("result", result);
+        } catch (Exception error) {
+            if (!stream.cancelled()) {
+                try { stream.event("error", Map.of("error", safeMessage(error))); }
+                catch (IOException disconnected) { /* The client has already left. */ }
+            }
+        } finally {
+            deadline.cancel(false);
+            streams.remove(id, stream);
+        }
+    }
+
+    private static final class AnswerStream implements ChatPipeline.Stream {
+        private final OutputStream output;
+        private final Thread owner = Thread.currentThread();
+        private volatile InputStream upstream;
+        private volatile boolean cancelled;
+
+        AnswerStream(OutputStream output) {
+            this.output = output;
+        }
+
+        @Override public void delta(String text) throws IOException {
+            event("delta", Map.of("text", text));
+        }
+
+        @Override public void attach(InputStream body) throws IOException {
+            upstream = body;
+            if (cancelled) {
+                body.close();
+                throw new IOException("回答已停止");
+            }
+        }
+
+        boolean cancelled() {
+            return cancelled;
+        }
+
+        void cancel() {
+            cancelled = true;
+            owner.interrupt();
+            var body = upstream;
+            if (body != null) {
+                try { body.close(); }
+                catch (IOException disconnected) { /* The provider has already closed its stream. */ }
+            }
+        }
+
+        void event(String name, Object data) throws IOException {
+            if (cancelled) throw new IOException("回答已停止");
+            output.write(("event: " + name + "\ndata: ").getBytes(StandardCharsets.UTF_8));
+            output.write(Json.MAPPER.writeValueAsBytes(data));
+            output.write(new byte[]{'\n', '\n'});
+            output.flush();
         }
     }
 
@@ -298,7 +388,9 @@ public final class StandardServer implements AutoCloseable {
 
     @Override
     public void close() {
+        streams.values().forEach(AnswerStream::cancel);
         server.stop(1);
+        streamDeadlines.shutdownNow();
         ingestion.close();
         executor.shutdownNow();
     }
