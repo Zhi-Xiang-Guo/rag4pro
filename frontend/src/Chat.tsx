@@ -8,7 +8,7 @@ import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
 import { contexts, strategies, streamAnswer, type Answer } from './answers';
 import { AnswerSources, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
 import { useResource } from './resources';
-import { decodeHistory, historyKey, recentHistory, type Message, type Session, type History } from './conversations';
+import { decodeHistory, encodeHistory, historyKey, recentHistory, type Message, type Session, type History } from './conversations';
 
 type Running = {streamId: string; controller: AbortController; streaming: boolean; target: Session; message: Message};
 function loadHistory(): History {
@@ -75,8 +75,11 @@ export default function Chat({api}: {api: ApiClient}) {
   const selectedIndex = assistant?.id === inspection?.messageId ? inspection?.index : undefined;
 
   useEffect(() => {
-    try { localStorage.setItem(historyKey, JSON.stringify(history)); }
-    catch { /* Keep the current session available in memory. */ }
+    try { localStorage.setItem(historyKey, encodeHistory(history)); }
+    catch {
+      try { localStorage.setItem(historyKey, encodeHistory(history, 500_000)); }
+      catch { /* Keep the current session available in memory when storage is unavailable. */ }
+    }
   }, [history]);
   useEffect(() => () => {
     const run = active.current;

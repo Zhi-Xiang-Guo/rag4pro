@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {decodeHistory, recentHistory} from '../src/conversations.ts';
+import {decodeHistory, encodeHistory, recentHistory} from '../src/conversations.ts';
 
 test('loads valid saved chats around damaged entries', () => {
   const history = decodeHistory(JSON.stringify({currentId: 'chat', sessions: [
@@ -43,4 +43,23 @@ test('request context keeps complete recent turns and the new question', () => {
   assert.deepEqual(history.slice(0, 2), [{role: 'user', content: 'q3'}, {role: 'assistant', content: 'a3'}]);
   assert.deepEqual(history.at(-1), {role: 'user', content: 'next'});
   assert.ok(history.every(message => !['orphan', 'unfinished'].includes(message.content)));
+});
+
+test('fits saved history within the budget and prioritizes the open conversation', () => {
+  const first = {id: 'recent', title: 'recent', datasetId: 'kb', messages: [
+    {id: 'q', role: 'user', content: 'question'},
+  ]};
+  const second = {id: 'open', title: 'open', datasetId: 'kb', messages: [
+    {id: 'q', role: 'user', content: 'question'},
+    {id: 'a', role: 'assistant', content: 'answer', reference: {chunks: [{content: 'x'.repeat(2000)}]}},
+  ]};
+  const history = {currentId: 'open', sessions: [first, second]};
+  const encoded = encodeHistory(history, 340);
+  assert.ok(encoded.length <= 340);
+  const restored = decodeHistory(encoded);
+  assert.equal(restored.currentId, 'open');
+  assert.deepEqual(restored.sessions.map(session => session.id), ['open', 'recent']);
+  assert.equal(restored.sessions[0].messages[1].content, 'answer');
+  assert.equal(restored.sessions[0].messages[1].reference, undefined);
+  assert.equal(history.sessions[1].messages[1].reference.chunks.length, 1);
 });

@@ -88,3 +88,29 @@ export function recentHistory(messages: readonly Message[], question: string) {
   }
   return [...completed.slice(-5).flat(), {role: 'user' as const, content: question}];
 }
+
+export function encodeHistory(history: History, budget = 2_000_000): string {
+  const prioritized = [...history.sessions.filter(session => session.id === history.currentId),
+    ...history.sessions.filter(session => session.id !== history.currentId)];
+  const currentId = prioritized[0]?.id === history.currentId ? history.currentId : '';
+  const prefix = '{"currentId":' + JSON.stringify(currentId) + ',"sessions":[';
+  const saved: string[] = [];
+  let remaining = budget - prefix.length - 2;
+
+  for (const session of prioritized) {
+    let entry = JSON.stringify(session);
+    if (entry.length > remaining && !saved.length) {
+      // A single long conversation can exceed the quota because it holds snapshots of every cited chunk.
+      const messages = session.messages.map(({reference: _reference, ...message}) => message);
+      entry = JSON.stringify({...session, messages});
+      if (entry.length > remaining) {
+        entry = JSON.stringify({...session, messages: messages.slice(-12)});
+      }
+    }
+    if (entry.length > remaining) continue;
+    saved.push(entry);
+    remaining -= entry.length + 1;
+  }
+  return saved.length ? prefix + saved.join(',') + ']}'
+    : JSON.stringify({currentId: '', sessions: []});
+}
