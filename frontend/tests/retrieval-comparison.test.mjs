@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { compareChunks, describeStage } from '../src/retrievalComparison.ts';
+import { buildExperimentReport, compareChunks, describeStage } from '../src/retrievalComparison.ts';
 
 test('compares stable chunk identity and preserves the first rank', () => {
   const baseline = [{id: 'a'}, {id: 'a'}, {id: 'b'}, {content: 'unidentified'}];
@@ -30,4 +30,26 @@ test('selects numeric trace diagnostics and excludes raw engine requests', () =>
   assert.deepEqual(final.details, ['候选 8', 'RRF 常数 60', '未使用相似度阈值', '优先覆盖不同文档']);
   assert.deepEqual(describeStage({stage: 'future', candidates: NaN, total: {value: 200}}),
     {label: 'future', details: []});
+});
+
+test('exports budgets, ranks and counts without query text, bodies or raw traces', () => {
+  const recipe = {
+    version: 1, datasetId: 'd', docId: 'refund', question: 'private input',
+    topK: 2, candidateK: 16, evidenceBudget: 600,
+    baseline: {strategy: 'standard', contextMode: 'leaf', useReranker: false},
+    comparison: {strategy: 'rrf', contextMode: 'leaf', useReranker: false},
+  };
+  const chunk = {id: 'a', source: {revision: 'r1'}, content: 'private body'};
+  const baseline = {
+    hits: [{}, chunk], evidence: [chunk], evidenceTokens: 111, retrievalMs: 31, total: 12,
+    contextMode: 'leaf', trace: [{stage: 'initial', returned: 12, request: {question: 'private trace'}}],
+  };
+  const comparison = {...baseline, hits: [chunk], trace: []};
+  const report = buildExperimentReport(recipe, '2026-11-27T00:00:00Z', baseline, comparison);
+
+  assert.deepEqual(report.baseline.hits, [{id: 'a', rank: 2, sourceRevision: 'r1'}]);
+  assert.deepEqual(report.overlap.hits, {shared: 1, baselineOnly: 0, comparisonOnly: 0});
+  assert.equal(report.budgets.candidateK, 16);
+  assert.equal(report.comparison.settings.strategy, 'rrf');
+  assert.doesNotMatch(JSON.stringify(report), /private/);
 });

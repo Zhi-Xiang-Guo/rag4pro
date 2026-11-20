@@ -1,18 +1,14 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { messageOf, withQuery, type ApiClient, type Dataset } from './api';
-import { contexts, excerpt, strategies, type Evidence } from './answers';
+import { contexts, excerpt, strategies } from './answers';
 import { EvidenceCard, EvidenceDialog, type SelectedSource } from './components/AnswerSources';
 import { useResource, type DocumentRow } from './resources';
-import { compareChunks, describeStage } from './retrievalComparison';
+import { buildExperimentReport, compareChunks, describeStage, type RetrievalResult } from './retrievalComparison';
 import { downloadExperiment, readRecipe, type RetrievalArm, type RetrievalRecipe } from './retrievalRecipe';
 
-type Result = {
-  hits: Evidence[]; evidence: Evidence[]; evidenceTokens: number; retrievalMs: number;
-  contextMode: string; total: number; trace: Record<string, unknown>[];
-};
 type Comparison = {label: string; strategy: string; rerank: boolean} & (
-  {result: Result; error?: never} | {result?: never; error: string}
+  {result: RetrievalResult; error?: never} | {result?: never; error: string}
 );
 const arms = [['baseline', '基线'], ['comparison', '对照']] as const;
 
@@ -34,7 +30,7 @@ function StrategyFields({name, title, rerank, initial}: {
   </fieldset>;
 }
 
-function ComparisonSummary({baseline, comparison}: {baseline: Result; comparison: Result}) {
+function ComparisonSummary({baseline, comparison}: {baseline: RetrievalResult; comparison: RetrievalResult}) {
   const hits = compareChunks(baseline.hits, comparison.hits);
   const evidence = compareChunks(baseline.evidence, comparison.evidence);
   return <section className="panel stack">
@@ -77,8 +73,11 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
   const documents = useResource<DocumentRow[]>(api, datasetAvailable
     ? withQuery('/api/documents', {datasetId}) : undefined);
   const documentAvailable = !docId || !!documents.data?.some(document => document.docId === docId);
-  const [lastScope, setLastScope] = useState<{datasetId: string; docId?: string}>();
+  const [lastRun, setLastRun] = useState<{recipe: RetrievalRecipe; startedAt: string; scopeName: string}>();
+
   const [results, setResults] = useState<Comparison[]>([]);
+  const baselineResult = results[0]?.result;
+  const comparisonResult = results[1]?.result;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<SelectedSource>();
@@ -156,7 +155,10 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
       datasetId: recipe.datasetId, docId: recipe.docId, question: recipe.question,
       topK: recipe.topK, candidateK: recipe.candidateK, evidenceBudget: recipe.evidenceBudget,
     };
-    setLastScope({datasetId: request.datasetId, docId: request.docId});
+    const datasetName = datasets.data?.find(dataset => dataset.datasetId === request.datasetId)?.name;
+    const documentTitle = documents.data?.find(document => document.docId === request.docId)?.title;
+    setLastRun({recipe, startedAt: new Date().toISOString(),
+      scopeName: [datasetName ?? request.datasetId, documentTitle ?? request.docId].filter(Boolean).join(' / ')});
     try {
       for (const [name, label] of arms) {
         const arm = recipe[name];
@@ -164,7 +166,7 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
         const row = {label, strategy, rerank: useReranker};
         let outcome: Comparison;
         try {
-          const result = await api.json<Result>('/api/retrieve/context', 'POST', {
+          const result = await api.json<RetrievalResult>('/api/retrieve/context', 'POST', {
             ...request, ...arm,
           }, controller.signal);
           outcome = {...row, result};
@@ -219,11 +221,23 @@ export default function Retrieve({api, rerank}: {api: ApiClient; rerank: boolean
         <input type="file" hidden accept=".json,application/json" ref={importInput} onChange={importRecipe} />
       </div>
     </form>
-    {lastScope && results.length > 0 && <div className="actions">
-      <Link className="button" to={withQuery('/chat', lastScope)}>按此范围提问</Link>
-    </div>}
-    {results[0]?.result && results[1]?.result &&
-      <ComparisonSummary baseline={results[0].result} comparison={results[1].result} />}
+    {lastRun && results.length > 0 && <section className="panel stack">
+      <h2>本次实验</h2>
+      <p>{lastRun.recipe.question}</p>
+      <p className="muted">{lastRun.scopeName} · Top {lastRun.recipe.topK} · 候选 {lastRun.recipe.candidateK} ·
+        {' '}证据预算 {lastRun.recipe.evidenceBudget} tokens</p>
+      <div className="actions">
+        <Link className="button" to={withQuery('/chat', {
+          datasetId: lastRun.recipe.datasetId, docId: lastRun.recipe.docId,
+        })}>按此范围提问</Link>
+        {baselineResult && comparisonResult &&
+          <button type="button" onClick={() => downloadExperiment('rag4pro-retrieval-report.json',
+            buildExperimentReport(lastRun.recipe, lastRun.startedAt, baselineResult, comparisonResult))}>
+            导出结果
+          </button>}
+      </div>
+    </section>}
+    {baselineResult && comparisonResult && <ComparisonSummary baseline={baselineResult} comparison={comparisonResult} />}
     <div className="comparison-grid comparison-results" aria-live="polite">
       {results.map(({label, strategy, rerank, result, error}) => <article key={label} className="panel">
         <h2>{label} · {strategies[strategy]}{rerank && ' + 精排'}</h2>

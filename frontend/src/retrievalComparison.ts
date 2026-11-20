@@ -1,4 +1,5 @@
 import type { Evidence } from './answers';
+import type { RetrievalRecipe } from './retrievalRecipe';
 
 export function compareChunks(baseline: Evidence[], comparison: Evidence[]) {
   const rows = new Map<string, {chunk: Evidence; baseline?: number; comparison?: number}>();
@@ -41,4 +42,42 @@ export function describeStage(step: Record<string, unknown>) {
   if (step.thresholdApplied === false) details.push('未使用相似度阈值');
   if (step.documentDiversity === true) details.push('优先覆盖不同文档');
   return {label: stageLabels[stage] ?? (stage || '检索'), details};
+}
+
+export type RetrievalResult = {
+  hits: Evidence[];
+  evidence: Evidence[];
+  evidenceTokens: number;
+  retrievalMs: number;
+  contextMode: string;
+  total: number;
+  trace: Record<string, unknown>[];
+};
+
+export function buildExperimentReport(recipe: RetrievalRecipe, startedAt: string,
+  baseline: RetrievalResult, comparison: RetrievalResult) {
+  const chunks = (list: Evidence[]) => list.flatMap((chunk, index) => chunk.id ? [{
+    id: chunk.id, rank: index + 1, sourceRevision: chunk.source?.revision,
+  }] : []);
+  const summarize = (result: RetrievalResult) => ({
+    candidateTotal: result.total,
+    retrievalMs: result.retrievalMs,
+    evidenceTokens: result.evidenceTokens,
+    hits: chunks(result.hits),
+    evidence: chunks(result.evidence),
+    stages: result.trace.map(describeStage),
+  });
+  const overlap = (left: Evidence[], right: Evidence[]) => {
+    const {shared, baselineOnly, comparisonOnly} = compareChunks(left, right);
+    return {shared, baselineOnly, comparisonOnly};
+  };
+  return {
+    version: 1,
+    startedAt,
+    scope: {datasetId: recipe.datasetId, docId: recipe.docId},
+    budgets: {topK: recipe.topK, candidateK: recipe.candidateK, evidenceBudget: recipe.evidenceBudget},
+    baseline: {settings: recipe.baseline, ...summarize(baseline)},
+    comparison: {settings: recipe.comparison, ...summarize(comparison)},
+    overlap: {hits: overlap(baseline.hits, comparison.hits), evidence: overlap(baseline.evidence, comparison.evidence)},
+  };
 }
