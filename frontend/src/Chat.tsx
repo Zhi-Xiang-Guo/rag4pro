@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CircleStop, Plus, SendHorizontal, MessageSquare, ScanText } from 'lucide-react';
+import { ArrowDown, CircleStop, Plus, SendHorizontal, MessageSquare, ScanText } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { citationMarkdown } from './citationMarkdown';
@@ -54,6 +54,7 @@ export default function Chat({api}: {api: ApiClient}) {
   const [contextMode, setContextMode] = useState('parent');
   const [pending, setPending] = useState<Running>();
   const [live, setLive] = useState('');
+  const [followConversation, setFollowConversation] = useState(true);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [inspection, setInspection] = useState<{messageId: string; index?: number}>();
@@ -87,10 +88,11 @@ export default function Chat({api}: {api: ApiClient}) {
   }, [api]);
   useEffect(() => {
     const area = messageList.current;
-    if (area) area.scrollTop = area.scrollHeight;
-  }, [messages, pending, live]);
+    if (area && followConversation) area.scrollTop = area.scrollHeight;
+  }, [messages, pending, live, followConversation]);
 
   function newChat(nextDataset = datasetId, nextDocument = docId) {
+    setFollowConversation(true);
     setHistory(old => ({...old, currentId: ''}));
     setParams(nextDataset ? {datasetId: nextDataset, ...(nextDocument ? {docId: nextDocument} : {})} : {});
     setQuestion(''); setError(''); setNotice(''); setInspection(undefined);
@@ -98,6 +100,7 @@ export default function Chat({api}: {api: ApiClient}) {
   }
 
   function openSession(target: Session) {
+    setFollowConversation(true);
     setHistory(old => ({...old, currentId: target.id}));
     setParams({datasetId: target.datasetId, ...(target.docId ? {docId: target.docId} : {})});
     setQuestion(''); setError(''); setNotice(''); setInspection(undefined);
@@ -131,6 +134,7 @@ export default function Chat({api}: {api: ApiClient}) {
     const run: Running = {streamId: crypto.randomUUID(), controller: new AbortController(),
       streaming: answerMode === 'standard', target, message: user};
     active.current = run;
+    setFollowConversation(true);
     setPending(run); setQuestion(''); setLive(''); setError(''); setNotice(''); setInspection(undefined);
     try {
       const result = run.streaming ? await streamAnswer(api, run.streamId, request, run.controller.signal,
@@ -164,8 +168,16 @@ export default function Chat({api}: {api: ApiClient}) {
       </button>)}
     </aside>
     <div className="chat-center">
-      <header className="chat-heading"><h1>对话</h1>{docId && <span className="scope-chip">单篇文档</span>}</header>
-      <div className="conversation-scroll" ref={messageList}>
+      <header className="chat-heading">
+        <h1>对话</h1>{docId && <span className="scope-chip">单篇文档</span>}
+        {!followConversation && <button type="button" className="follow-conversation" onClick={() => setFollowConversation(true)}>
+          <ArrowDown size={14} /> 查看最新消息
+        </button>}
+      </header>
+      <div className="conversation-scroll" ref={messageList} onScroll={event => {
+        const area = event.currentTarget;
+        setFollowConversation(area.scrollHeight - area.clientHeight - area.scrollTop < 48);
+      }}>
         {!visibleMessages.length && <div className="welcome">
           <span className="welcome-icon"><ScanText size={24} /></span><h2>向知识库提问</h2>
           <p>用文档回答问题，点开引用核对原文。</p>

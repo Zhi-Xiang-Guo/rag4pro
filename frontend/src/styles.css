@@ -154,6 +154,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height
 .session:hover, .session.active { background: var(--accent-bg); color: var(--accent); }
 .chat-center { display: flex; flex-direction: column; padding: 23px clamp(12px, 3vw, 37px); min-width: 0; min-height: 100dvh; }
 .chat-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 17px; }
+.follow-conversation { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
 .scope-chip { color: var(--accent); border-radius: 15px; padding: 3px 9px; background: var(--accent-bg); }
 .conversation-scroll { flex: 1 1 auto; overflow: auto; min-height: 230px; max-height: calc(100dvh - 225px); padding: 3px; }
 .welcome { text-align: center; margin: clamp(45px, 15vh, 185px) auto 25px; padding: 0 12px; color: var(--muted); }
