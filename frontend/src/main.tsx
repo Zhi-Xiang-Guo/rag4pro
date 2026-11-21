@@ -4,6 +4,8 @@ import { BrowserRouter, Link, Navigate, NavLink, Route, Routes } from 'react-rou
 import { ArrowUpRight, BookOpen, ChartNoAxesColumnIncreasing, Database, KeyRound, MessageSquare, ScanText } from 'lucide-react';
 import { apiClient, savedToken, saveToken, type ServiceStatus } from './api';
 import Knowledge from './Knowledge';
+import Chat from './Chat';
+import Retrieve from './Retrieve';
 import './styles.css';
 
 const pages = [
@@ -51,8 +53,8 @@ function Workspace() {
         <Routes>
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/knowledge/*" element={<Knowledge key={token} api={api} />} />
-          <Route path="/chat/*" element={<section className="page"><h1>对话</h1><a href="/workspace-legacy">打开对话工作台</a></section>} />
-          <Route path="/retrieve" element={<section className="page"><h1>检索实验</h1><a href="/workspace-legacy">打开检索实验</a></section>} />
+          <Route path="/chat/*" element={<Chat api={api} />} />
+          <Route path="/retrieve" element={<Retrieve api={api} rerank={Boolean(health?.rerank)} />} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Routes>
       </main>

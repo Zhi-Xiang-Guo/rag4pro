@@ -36,7 +36,7 @@ public final class CorpusService {
     private final int contextLength;
     private final String embeddingIdentity;
     private final ContentVectorCache contentCache;
-    private Reranker.Model reranker;
+    private volatile Reranker.Model reranker;
 
     public CorpusService(
             ElasticsearchStore store,
@@ -901,7 +901,8 @@ public final class CorpusService {
                 "queryCacheEntries", Integer.parseInt(Settings.get("QUERY_CACHE_ENTRIES", "0")),
                 "chatContext", contextLength,
                 "extractiveModel", extractiveModel.model(),
-                "extractiveContext", extractiveModel.contextLength());
+                "extractiveContext", extractiveModel.contextLength(),
+                "rerank", reranker != null);
     }
 
     public static List<Map<String, Object>> summaries(List<Map<String, Object>> chunks) {

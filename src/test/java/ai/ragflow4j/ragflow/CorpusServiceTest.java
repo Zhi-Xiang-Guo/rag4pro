@@ -190,7 +190,8 @@ class CorpusServiceTest {
         stored.put("section-a", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 0,
                 "content_with_weight", " context".repeat(24)));
         stored.put("parent-a", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 0,
-                "content_with_weight", "alpha rule and beta rule with context"));
+                "content_with_weight", "alpha rule and beta rule with context",
+                "source_revision_kwd", "revision", "source_kind_kwd", "page", "source_unit_int", 2));
         stored.put("section-b", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 0,
                 "content_with_weight", "gamma rule"));
 
@@ -198,6 +199,8 @@ class CorpusServiceTest {
                 "strategy", "lexical", "contextMode", "section", "topK", 3, "evidenceBudget", 12));
         var result = corpus.retrieveContext(input);
         assertEquals(List.of("parent-a", "section-b"), evidenceIds(result));
+        assertEquals(Map.of("revision", "revision", "kind", "page", "unit", 2),
+                ((Map<?, ?>) ((List<?>) result.get("evidence")).getFirst()).get("source"));
         assertTrue((int) result.get("evidenceTokens") <= 12);
 
         input.put("evidenceBudget", 6);

@@ -525,6 +525,7 @@ public final class StandardRetrieval {
         result.put("mom_id", fields.getOrDefault("mom_id", ""));
         for (String field : List.of("section_id", "section_kwd", "chunk_strategy_kwd"))
             if (fields.containsKey(field)) result.put(field, fields.get(field));
+        copySourceLocation(fields, result);
         result.put("row_id", fields.get("row_id()"));
         result.put("tag_kwd", new String[0]);
         result.put(
@@ -533,6 +534,11 @@ public final class StandardRetrieval {
                         "q_" + search.vector().length + "_vec", new double[search.vector().length]));
         if (search.highlights().containsKey(id)) result.put("highlight", search.highlights().get(id));
         return result;
+    }
+
+    private static void copySourceLocation(Map<String, Object> source, Map<String, Object> destination) {
+        for (String key : List.of("source_revision_kwd", "source_kind_kwd", "source_unit_int", "source_start_int"))
+            if (source.containsKey(key)) destination.put(key, source.get(key));
     }
 
     private static List<Map<String, Object>> aggregate(List<Integer> valid, SearchResult search) {
@@ -621,6 +627,7 @@ public final class StandardRetrieval {
                 result.put(field, parent.get(field));
             for (String field : List.of("section_kwd", "section_id", "context_level_kwd"))
                 if (parent.containsKey(field)) result.put(field, parent.get(field));
+            copySourceLocation(parent, result);
             result.put("important_kwd", important);
             result.put("image_id", parent.get("img_id") == null ? "" : parent.get("img_id"));
             result.put("similarity", average);

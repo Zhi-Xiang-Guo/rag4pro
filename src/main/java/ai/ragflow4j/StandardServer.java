@@ -259,6 +259,8 @@ public final class StandardServer implements AutoCloseable {
         } finally {
             deadline.cancel(false);
             streams.remove(id, stream);
+            // A deliberate stop interrupts the provider read. Close the HTTP response with a clear interrupt flag.
+            if (stream.cancelled()) Thread.interrupted();
         }
     }
 

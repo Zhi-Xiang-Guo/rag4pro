@@ -10,9 +10,9 @@
 docker compose up -d --build --wait
 ```
 
-打开 <http://localhost:18080> 进入工作台。可以点示例问题建立支付手册索引，也可以新建知识库并导入 TXT 或 Markdown。
+打开 <http://localhost:18080> 进入工作台。可以点示例问题建立支付手册索引，也可以新建知识库，上传 TXT、Markdown、带文字的 PDF 或 DOCX。后台入库完成后可查看分块、预览原件并直接提问。
 
-- **对话**支持多轮追问、证据摘录和综合回答，引用可展开查看原文。
+- **对话**支持多轮追问、证据摘录和流式综合回答。新入库文档的引用可打开对应版本的原件，并定位到 PDF 页或 Word 正文段落与表格。
 - **知识库**支持固定窗口、结构分块、父子分块和多层分块，可预览检索块、父段和章节窗口的数量。
 - **检索实验**可在相同问题、知识库、候选池和证据预算下，对照两组召回与上下文配置。
 
@@ -26,7 +26,7 @@ docker compose up -d --build --wait
 
 <http://localhost:18080/lab> 可查看原始 API 的候选、ES DSL 和模型上下文。示例手册、题目和运行结果均可以在本仓库查看。
 
-在 Linux 上也可以运行 `./run.sh`。安装 Java 21、Maven、Go 1.26.4+、`g++`、`libpcre2-dev`、`libsimde-dev` 和 Docker Compose，脚本启动 Elasticsearch 容器并在宿主机运行 Java。在 macOS 上，原生编译依赖 Xcode Command Line Tools 和 Homebrew 的 `pcre2`、`simde`。
+在 Linux 上也可以运行 `./run.sh`。安装 Java 21、Maven、Node.js 22、Go 1.26.4+、`g++`、`libpcre2-dev`、`libsimde-dev` 和 Docker Compose，脚本启动 Elasticsearch 容器并在宿主机运行 Java。在 macOS 上，原生编译依赖 Xcode Command Line Tools 和 Homebrew 的 `pcre2`、`simde`。
 
 切换向量模型后，使用新的 Compose 项目为该模型建立索引。服务默认监听本机回环端口，健康检查返回 Elasticsearch 索引、向量模型标识和聊天模型。
 
