@@ -31,6 +31,7 @@ class CorpusServiceTest {
     private DocumentCatalog catalog;
     private final Map<String, Map<String, Object>> stored = new LinkedHashMap<>();
     private final List<String> embeddedQueries = new ArrayList<>();
+    private volatile boolean blockJobCompletion;
     @TempDir
     Path temp;
 
@@ -68,6 +69,12 @@ class CorpusServiceTest {
                             String id = JSON.readTree(lines[i]).path("index").path("_id").asText();
                             stored.put(id, JSON.readValue(lines[i + 1], new TypeReference<>() {
                             }));
+                        }
+                        if (blockJobCompletion) {
+                            String revision = JSON.readTree(lines[1]).path("source_revision_kwd").asText();
+                            Path job = temp.resolve("ingestion").resolve(revision).resolve("job.json");
+                            Files.move(job, job.resolveSibling("pending.json"));
+                            Files.createDirectory(job);
                         }
                         response = Map.of("errors", false);
                     } else if (path.endsWith("/_delete_by_query")) {
@@ -214,6 +221,37 @@ class CorpusServiceTest {
             assertEquals(3, workspaceCall(endpoint, "/api/ingestion?datasetId=uploads", null, 200).size());
             assertFalse(Files.exists(temp.resolve("ingestion").resolve(finished).resolve("upload")));
         }
+    }
+
+    @Test
+    void publishedDocumentRemainsReadyWhenCompletionManifestCannotBeWritten() throws Exception {
+        corpus.saveDataset(Map.of("datasetId", "uploads", "name", "Uploads"));
+        blockJobCompletion = true;
+        String revision;
+        Path jobDirectory;
+        try (var server = new StandardServer(new InetSocketAddress("127.0.0.1", 0), corpus, 8, "fixture-token")) {
+            server.start();
+            String endpoint = "http://127.0.0.1:" + server.address().getPort();
+            String upload = "/api/ingestion?datasetId=uploads&docId=guide&filename=guide.txt";
+            revision = workspaceCall(endpoint, upload, "published source", 202).path("id").asText();
+            assertEquals("READY", waitForIngestion(endpoint, revision).path("status").asText());
+            assertEquals(revision, corpus.document("uploads", "guide").get("sourceRevision"));
+            jobDirectory = temp.resolve("ingestion").resolve(revision);
+            assertTrue(Files.isDirectory(jobDirectory.resolve("job.json")));
+            assertTrue(Files.exists(jobDirectory.resolve("upload")));
+        }
+
+        blockJobCompletion = false;
+        Files.delete(jobDirectory.resolve("job.json"));
+        Files.move(jobDirectory.resolve("pending.json"), jobDirectory.resolve("job.json"));
+        try (var restarted = new StandardServer(new InetSocketAddress("127.0.0.1", 0), corpus, 8, "fixture-token")) {
+            restarted.start();
+            String endpoint = "http://127.0.0.1:" + restarted.address().getPort();
+            assertEquals("READY", waitForIngestion(endpoint, revision).path("status").asText());
+            assertEquals(revision, corpus.document("uploads", "guide").get("sourceRevision"));
+        }
+        assertFalse(Files.exists(jobDirectory.resolve("upload")));
+        assertEquals("READY", JSON.readTree(jobDirectory.resolve("job.json").toFile()).path("status").asText());
     }
 
     private void seedIngestion(String id, String status, String updatedAt) throws Exception {

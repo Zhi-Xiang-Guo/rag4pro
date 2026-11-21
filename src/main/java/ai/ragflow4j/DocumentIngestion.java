@@ -206,7 +206,6 @@ final class DocumentIngestion implements AutoCloseable {
             request.put("docId", job.docId());
             request.put("title", job.title());
             corpus.indexSource(request, source, job.expectedVersion());
-            change(id, Status.READY, "");
         } catch (Exception failure) {
             if (worker.isShutdown()) return;
             try {
@@ -218,7 +217,21 @@ final class DocumentIngestion implements AutoCloseable {
             }
             return;
         }
-        removeStagedUpload(job);
+        if (markReady(id)) removeStagedUpload(job);
+    }
+
+    private synchronized boolean markReady(String id) {
+        Job ready = jobs.get(id).state(Status.READY, "");
+        try {
+            persist(ready);
+            return true;
+        } catch (IOException error) {
+            // The catalog already points at this revision. Keep the pending manifest and bytes for recovery.
+            jobs.put(id, ready);
+            System.err.println("Could not persist completed ingestion job " + id + ": "
+                    + error.getClass().getSimpleName());
+            return false;
+        }
     }
 
     private void removeStagedUpload(Job job) {
