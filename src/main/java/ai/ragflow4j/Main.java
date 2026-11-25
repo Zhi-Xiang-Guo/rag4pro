@@ -33,6 +33,12 @@ public final class Main {
                         URI.create(get("BASE_URL", "http://127.0.0.1:11434/v1")),
                         get("API_KEY", ""),
                         embeddingModel, embeddingMaxTokens);
+        int contextLength = Integer.parseInt(get("CHAT_CONTEXT", "8192"));
+        String chatProvider = get("CHAT_PROVIDER", "ollama");
+        String chatModelName = get("CHAT_MODEL", chatProvider.equals("ollama") ? "qwen3:4b" : "");
+        var chatModel = chatModel(chatProvider, chatModelName, contextLength);
+        var extractiveModel = chatModel(chatProvider, get("EXTRACTIVE_MODEL", chatModelName),
+                Math.min(contextLength, 8192));
         // 建索引与查询共用 embedding 模型；索引适配器额外提供批量处理和模型窗口裁剪。
         var indexEmbedder =
                 new IndexingPipeline.Embedder() {
@@ -59,15 +65,6 @@ public final class Main {
         store.initialize();
         Path dataPath = Path.of(get("DATA_DIR", "data"));
         var catalog = new DocumentCatalog(dataPath.resolve("documents.json"));
-        int contextLength = Integer.parseInt(get("CHAT_CONTEXT", "8192"));
-        URI ollama = URI.create(get("CHAT_URL", "http://127.0.0.1:11434"));
-        var chatModel =
-                new LocalChatModel(
-                        ollama,
-                        get("CHAT_MODEL", "qwen3:4b"),
-                        contextLength);
-        var extractiveModel = new LocalChatModel(ollama, get("EXTRACTIVE_MODEL", chatModel.model()),
-                Math.min(contextLength, 8192));
         // 手动注入依赖：CorpusService 只需要拿到已构造的对象，不负责读取环境变量。
         var corpus =
                 new CorpusService(
@@ -109,5 +106,15 @@ public final class Main {
                         + embeddingModel
                         + ", chat="
                         + chatModel.model());
+    }
+
+    private static LocalChatModel chatModel(String provider, String model, int contextLength) {
+        return switch (provider) {
+            case "ollama" -> new LocalChatModel(URI.create(get("CHAT_URL", "http://127.0.0.1:11434")), model,
+                    contextLength);
+            case "openai" -> LocalChatModel.openAi(URI.create(get("CHAT_URL", "")), get("CHAT_API_KEY", ""), model,
+                    contextLength);
+            default -> throw new IllegalArgumentException("EVIDENCE_RAG_CHAT_PROVIDER must be ollama or openai");
+        };
     }
 }

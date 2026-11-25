@@ -1,18 +1,22 @@
-# Evidence RAG for Java
+# rag4pro
 
-一个可本地复跑的 Java 21 RAG 项目。以支付故障手册为示例，使用 Elasticsearch 做独立词法召回和向量召回，用 RRF 合并候选，再由本地模型选择支持答案的原文。可以从回答跳到原文、核对手册版本，也可以逐步查看召回与证据选择。
+一个可本地复跑的 Java 21 RAG 项目。以支付故障手册为示例，使用 Elasticsearch 做独立词法召回和向量召回，用 RRF 合并候选，再由模型选择支持答案的原文。可以从回答跳到原文、核对手册版本，也可以逐步查看召回与证据选择。
 
 ## 运行演示
 
-在运行中的 Ollama 上下载模型。Docker Desktop 可以从容器访问宿主机的 Ollama。
+在项目根目录的 `.env` 中配置 OpenAI 兼容网关。聊天和向量化分别读取 URL、模型 ID 和鉴权密钥，证据摘录默认用同一个聊天模型。已有 `.env` 可直接使用。[配置示例](.env.example)
 
 ```bash
-ollama pull bge-m3
-ollama pull qwen3:4b
 docker compose up -d --build --wait
 ```
 
-打开 <http://localhost:18080>，建立示例索引。可以直接试三种情况。
+打开 <http://localhost:18080> 进入工作台。可以点示例问题建立支付手册索引，也可以新建知识库并导入 TXT 或 Markdown。
+
+- **对话**支持多轮追问、证据摘录和综合回答，引用可展开查看原文。
+- **知识库**支持固定窗口、结构分块、父子分块和多层分块，可预览检索块、父段和章节窗口的数量。
+- **检索实验**可在相同问题、知识库、候选池和证据预算下，对照两组召回与上下文配置。
+
+<http://localhost:18080/demo> 保留专用的支付手册演示，可以直接试三种情况。
 
 | 演示 | 看什么 |
 |---|---|
@@ -20,11 +24,11 @@ docker compose up -d --build --wait
 | 查旧版退款 | v1 返回 **5 个工作日**，切换到 v2 后按同一问题查到 **7 个工作日** |
 | 验证无证据拒答 | 手册没有退款手续费条款，返回“资料不足，无法回答。” |
 
-<http://localhost:18080/lab> 是检索实验台，可以自行建索引、查看候选、ES DSL 和模型上下文。示例手册、题目和运行结果均可以在本仓库查看。
+<http://localhost:18080/lab> 可查看原始 API 的候选、ES DSL 和模型上下文。示例手册、题目和运行结果均可以在本仓库查看。
 
 在 Linux 上也可以运行 `./run.sh`。安装 Java 21、Maven、Go 1.26.4+、`g++`、`libpcre2-dev`、`libsimde-dev` 和 Docker Compose，脚本启动 Elasticsearch 容器并在宿主机运行 Java。在 macOS 上，原生编译依赖 Xcode Command Line Tools 和 Homebrew 的 `pcre2`、`simde`。
 
-若需换端口、模型或接 OpenAI 兼容嵌入服务，可按 [.env.example](.env.example) 配置。服务默认监听本机回环端口，健康检查验证 Java 能读取 Elasticsearch。首次索引和问答还需要相应的 Ollama 模型已安装。
+切换向量模型后，使用新的 Compose 项目为该模型建立索引。服务默认监听本机回环端口，健康检查返回 Elasticsearch 索引、向量模型标识和聊天模型。
 
 ![演示页显示手册原文和高亮引用](docs/evaluation/demo.png)
 
@@ -35,13 +39,14 @@ flowchart LR
     A["文本或 Markdown"] --> B["分块 / 分词 / 向量化"]
     B --> C["Elasticsearch 索引"]
     Q["问题和手册版本"] --> F["文档范围过滤"]
-    F --> D["BM25"]
+    F --> D["多字段词法召回"]
     F --> E["向量"]
     C --> D
     C --> E
     D --> R["RRF"]
     E --> R
-    R --> S["模型选择证据编号"]
+    R --> P["按预算回填章节、父段或命中块"]
+    P --> S["模型选择证据编号"]
     S --> T["原文摘录与引用"]
     S --> U["证据不足"]
 ```
@@ -53,7 +58,8 @@ flowchart LR
 
 ## 评测与复现
 
-- **公开检索集。** 历史 SciFact 对照覆盖 5,183 篇文献与 300 道官方测试题。Java 默认路径切换到独立两路召回加 RRF 后，nDCG@10 从 **69.65% 到 73.71%**，Recall@10 从 **82.77% 到 87.91%**。报告保留逐题排名、退化案例和模型配置差异。[SciFact 对照报告](docs/evaluation/scifact.md)
+- **分块与证据覆盖。** HotpotQA 的 100 道固定留出题使用 OPay 网关向量。完整支持句覆盖从固定窗口的 **44/100** 提高到多层索引的 **56/100**、父段回填的 **64/100**，加入文档多样性和章节回填后为 **66/100**。五组共用召回与证据预算上限。[HotpotQA 对照报告](docs/evaluation/rag4pro-retrieval.md)
+- **公开检索集。** OPay 网关向量的 SciFact 对照覆盖 5,183 篇文献与 300 道官方测试题。独立词法与向量召回加 RRF 将 nDCG@10 从 **69.65% 提高到 73.65%**，Recall@10 从 **82.77% 提高到 87.91%**。[本次对照](docs/evaluation/rag4pro-retrieval.md#beir-scifact-文档排序) · [历史 SciFact 对照](docs/evaluation/scifact.md)
 - **中文问答。** 36 道支付手册测试题的发布版复测中，完整引用 **23/24**，正确拒答 **12/12**，版本及引用校验 **36/36**。漏答子问题和前两轮的结果可逐题复查。[中文问答报告](docs/evaluation/payment.md)
 - [评测命令](evaluation/README.md) · [核心链路导读](docs/reading-guide.md) · [API 与调试字段](docs/api.md)
 

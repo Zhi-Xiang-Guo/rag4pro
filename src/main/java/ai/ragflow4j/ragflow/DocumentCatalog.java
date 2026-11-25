@@ -13,17 +13,22 @@ import java.util.*;
  */
 public final class DocumentCatalog {
     private final Path path;
+    private final Path datasetPath;
     private final ObjectMapper json = new ObjectMapper();
     private Map<String, Map<String, Object>> documents;
+    private Map<String, Map<String, Object>> datasets;
 
     public DocumentCatalog(Path path) throws Exception {
         this.path = path;
+        datasetPath = path.resolveSibling("datasets.json");
         Files.createDirectories(path.toAbsolutePath().getParent());
-        documents =
-                Files.exists(path)
-                        ? json.readValue(path.toFile(), new TypeReference<>() {
-                })
-                        : new LinkedHashMap<>();
+        documents = read(path);
+        datasets = read(datasetPath);
+    }
+
+    private Map<String, Map<String, Object>> read(Path source) throws Exception {
+        return Files.exists(source) ? json.readValue(source.toFile(), new TypeReference<>() {})
+                : new LinkedHashMap<>();
     }
 
     /**
@@ -52,7 +57,8 @@ public final class DocumentCatalog {
         entry.put("internalDocId", identity(dataset, externalId));
         Map<String, Map<String, Object>> next = new LinkedHashMap<>(documents);
         next.put(identity(dataset, externalId), entry);
-        save(next);
+        save(path, next);
+        documents = next;
     }
 
     /** 同一个数据集的新文档一次落盘；调用者持有业务写锁。 */
@@ -68,27 +74,66 @@ public final class DocumentCatalog {
             entry.put("internalDocId", id);
             next.put(id, entry);
         }
-        save(next);
+        save(path, next);
+        documents = next;
     }
 
     public synchronized void delete(String dataset, String externalId) throws Exception {
         Map<String, Map<String, Object>> next = new LinkedHashMap<>(documents);
         next.remove(identity(dataset, externalId));
-        save(next);
+        save(path, next);
+        documents = next;
     }
 
     /**
      * 临时文件写成功后原子替换目录文件，最后才更新内存，避免失败时暴露未落盘状态。
      */
-    private void save(Map<String, Map<String, Object>> next) throws Exception {
-        Path temp = Files.createTempFile(path.toAbsolutePath().getParent(), "catalog-", ".tmp");
+    private void save(Path destination, Map<String, Map<String, Object>> next) throws Exception {
+        Path temp = Files.createTempFile(destination.toAbsolutePath().getParent(), "catalog-", ".tmp");
         try {
             json.writeValue(temp.toFile(), next);
-            Files.move(temp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            documents = next;
+            Files.move(temp, destination, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } finally {
             Files.deleteIfExists(temp);
         }
+    }
+
+    /** Existing API-created corpora stay visible without an entry in datasets.json. */
+    synchronized List<Map<String, Object>> datasets() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (var document : documents.values())
+            counts.merge(document.get("datasetId").toString(), 1L, Long::sum);
+        Set<String> ids = new LinkedHashSet<>(datasets.keySet());
+        ids.addAll(counts.keySet());
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String id : ids) {
+            var entry = new LinkedHashMap<>(datasets.getOrDefault(id, Map.of("name", id)));
+            entry.put("datasetId", id);
+            entry.put("documentCount", counts.getOrDefault(id, 0L));
+            entry.put("registered", datasets.containsKey(id));
+            result.add(entry);
+        }
+        return result;
+    }
+
+    synchronized Map<String, Object> dataset(String id) {
+        return datasets.getOrDefault(id, Map.of());
+    }
+
+    synchronized void putDataset(String id, Map<String, Object> details) throws Exception {
+        var next = new LinkedHashMap<>(datasets);
+        next.put(id, Map.copyOf(details));
+        save(datasetPath, next);
+        datasets = next;
+    }
+
+    synchronized void deleteEmptyDataset(String id) throws Exception {
+        if (!list(id).isEmpty()) throw new IllegalArgumentException("请先移除知识库里的文档");
+        if (!datasets.containsKey(id)) return;
+        var next = new LinkedHashMap<>(datasets);
+        next.remove(id);
+        save(datasetPath, next);
+        datasets = next;
     }
 
     public synchronized List<Map<String, Object>> list(String dataset) {

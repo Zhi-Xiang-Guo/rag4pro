@@ -83,7 +83,12 @@ public final class StandardServer implements AutoCloseable {
                     return;
                 }
             }
-            else if (path.equals("/api/documents") && method.equals("GET"))
+            else if (path.equals("/api/datasets") && method.equals("GET"))
+                result = corpus.datasets();
+            else if (path.equals("/api/datasets") && method.equals("DELETE")) {
+                corpus.deleteEmptyDataset(CorpusService.required(new HashMap<>(query), "datasetId"));
+                result = Map.of("deleted", true);
+            } else if (path.equals("/api/documents") && method.equals("GET"))
                 result = corpus.documents(dataset);
             else if (path.equals("/api/chunks") && method.equals("GET"))
                 result = corpus.chunks(dataset, query.get("docId"));
@@ -93,7 +98,8 @@ public final class StandardServer implements AutoCloseable {
                 corpus.delete(dataset, doc);
                 result = Map.of("deleted", true);
             } else if (method.equals("POST")
-                    && Set.of("/api/documents", "/api/documents/batch", "/api/retrieve", "/api/chat", "/api/demo/chat")
+                    && Set.of("/api/datasets", "/api/documents", "/api/documents/batch", "/api/chunk-preview",
+                            "/api/retrieve", "/api/retrieve/context", "/api/chat", "/api/demo/chat")
                     .contains(path)) {
                 String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
                 if (contentType == null
@@ -113,9 +119,12 @@ public final class StandardServer implements AutoCloseable {
                 // 初次阅读检索时，从 /api/retrieve 分支进入 corpus.retrieve 即可。
                 result =
                         switch (path) {
+                            case "/api/datasets" -> corpus.saveDataset(input);
                             case "/api/documents" -> corpus.index(input);
                             case "/api/documents/batch" -> corpus.indexBatch(input);
+                            case "/api/chunk-preview" -> corpus.previewChunks(input);
                             case "/api/retrieve" -> corpus.retrieve(input);
+                            case "/api/retrieve/context" -> corpus.retrieveContext(input);
                             case "/api/demo/chat" -> demo.answer(corpus, input);
                             default -> corpus.answer(input);
                         };
@@ -154,7 +163,10 @@ public final class StandardServer implements AutoCloseable {
 
     private boolean servePage(HttpExchange exchange, String path) throws IOException {
         String resource = switch (path) {
-            case "/" -> "/demo/index.html";
+            case "/" -> "/workspace/index.html";
+            case "/workspace.css" -> "/workspace/style.css";
+            case "/workspace.js" -> "/workspace/app.js";
+            case "/demo" -> "/demo/index.html";
             case "/demo.css" -> "/demo/style.css";
             case "/demo.js" -> "/demo/app.js";
             case "/lab" -> "/index.html";
@@ -162,8 +174,8 @@ public final class StandardServer implements AutoCloseable {
         };
         if (resource == null) return false;
         String contentType = switch (path) {
-            case "/demo.css" -> "text/css; charset=utf-8";
-            case "/demo.js" -> "text/javascript; charset=utf-8";
+            case "/demo.css", "/workspace.css" -> "text/css; charset=utf-8";
+            case "/demo.js", "/workspace.js" -> "text/javascript; charset=utf-8";
             default -> "text/html; charset=utf-8";
         };
         try (var page = Objects.requireNonNull(getClass().getResourceAsStream(resource))) {

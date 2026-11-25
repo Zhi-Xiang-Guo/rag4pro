@@ -33,6 +33,9 @@ public final class StandardRetrieval {
                     "content_with_weight",
                     "doc_type_kwd",
                     "mom_id",
+                    "section_id",
+                    "section_kwd",
+                    "chunk_strategy_kwd",
                     "row_id()",
                     "compile_kwd",
                     "scope_kwd",
@@ -101,7 +104,13 @@ public final class StandardRetrieval {
             long total) {
     }
 
-    private record ParentKey(String parentId, String documentId, String datasetId) {
+    private record ParentKey(String parentId, String documentId, String datasetId, boolean section) {
+    }
+
+    record ContextCandidate(Map<String, Object> chunk, List<Map<String, Object>> children, boolean section) {
+        static ContextCandidate leaf(Map<String, Object> chunk) {
+            return new ContextCandidate(chunk, List.of(), false);
+        }
     }
 
     public StandardRetrieval(
@@ -171,12 +180,14 @@ public final class StandardRetrieval {
 
     /** 两路独立召回避免词法条件预先过滤 dense 结果，再以 rank 融合消除分数量纲差异。 */
     private Result independent(Request request, List<Map<String, Object>> trace) throws Exception {
-        if (!Set.of("lexical", "dense", "rrf").contains(request.strategy))
+        boolean diversified = request.strategy.equals("rrf_diverse");
+        boolean hybrid = diversified || request.strategy.equals("rrf");
+        if (!hybrid && !Set.of("lexical", "dense").contains(request.strategy))
             throw new IllegalArgumentException("unknown retrieval strategy");
         if (request.rerankModel != null) throw new IllegalArgumentException("independent strategies do not use model reranking");
         LinkedHashMap<String, Map<String, Object>> fields = new LinkedHashMap<>();
         List<List<String>> rankings = new ArrayList<>();
-        for (String branch : request.strategy.equals("rrf") ? List.of("lexical", "dense") : List.of(request.strategy)) {
+        for (String branch : hybrid ? List.of("lexical", "dense") : List.of(request.strategy)) {
             long started = System.nanoTime();
             QueryBuilder.MatchTextExpr expression = branch.equals("lexical")
                     ? queryBuilder.question(request.question, "qa", 0.3, request.language).expression() : null;
@@ -184,7 +195,7 @@ public final class StandardRetrieval {
             if (branch.equals("lexical") && expression == null) { rankings.add(List.of()); continue; }
             double[] vector = branch.equals("dense") ? embedding.query(request.question) : new double[0];
             // RRF 将总候选预算分给两路，避免用双倍候选数制造表面收益。
-            int branchLimit = request.strategy.equals("rrf")
+            int branchLimit = hybrid
                     ? (branch.equals("lexical") ? Math.max(1, request.rerankCandidatesCount / 2)
                             : Math.max(1, (request.rerankCandidatesCount + 1) / 2))
                     : request.rerankCandidatesCount;
@@ -205,6 +216,7 @@ public final class StandardRetrieval {
                     "durationMs", (System.nanoTime() - started) / 1e6));
         }
         List<String> order = ReciprocalRankFusion.rank(rankings, 60);
+        if (diversified) order = preferDifferentDocuments(order, fields);
         Map<String, Double> fused = ReciprocalRankFusion.scores(rankings, 60);
         List<Map<String, Object>> chunks = new ArrayList<>();
         int begin = (request.page - 1) * request.pageSize;
@@ -218,9 +230,23 @@ public final class StandardRetrieval {
             chunks.add(result);
         }
         trace.add(Map.of("stage", "independent_rank", "strategy", request.strategy, "rrfK", 60,
-                "candidates", order.size(), "thresholdApplied", false));
+                "candidates", order.size(), "thresholdApplied", false, "documentDiversity", diversified));
         // RRF 不是 cosine；不能套用原版 0.2 阈值，否则几乎所有结果都会被过滤。
         return new Result(chunks, List.of(), order.size(), trace);
+    }
+
+    /** Keep the top hit from each document ahead of subsequent hits from already represented documents. */
+    static List<String> preferDifferentDocuments(List<String> ranking, Map<String, Map<String, Object>> fields) {
+        Set<String> seen = new HashSet<>();
+        List<String> firstHits = new ArrayList<>();
+        List<String> laterHits = new ArrayList<>();
+        for (String id : ranking) {
+            String document = firstString(fields.get(id).get("doc_id"));
+            if (document.isEmpty() || seen.add(document)) firstHits.add(id);
+            else laterHits.add(id);
+        }
+        firstHits.addAll(laterHits);
+        return firstHits;
     }
 
     static void defaultsAndValidate(Request request) {
@@ -493,6 +519,8 @@ public final class StandardRetrieval {
         result.put("vector_similarity", scores.vsim()[position]);
         result.put("important_kwd", fields.getOrDefault("important_kwd", new String[0]));
         result.put("mom_id", fields.getOrDefault("mom_id", ""));
+        for (String field : List.of("section_id", "section_kwd", "chunk_strategy_kwd"))
+            if (fields.containsKey(field)) result.put(field, fields.get(field));
         result.put("row_id", fields.get("row_id()"));
         result.put("tag_kwd", new String[0]);
         result.put(
@@ -527,34 +555,45 @@ public final class StandardRetrieval {
      * 原 RetrievalByChildren，按父ID+文档+知识库分组，父缺失或读取失败时保留子块。
      */
     public List<Map<String, Object>> expandParents(List<Map<String, Object>> chunks) {
-        if (chunks.isEmpty()) return chunks;
+        return expandContexts(chunks, false);
+    }
+
+    public List<Map<String, Object>> expandContexts(List<Map<String, Object>> chunks, boolean sections) {
+        return contextCandidates(chunks, sections).stream().map(ContextCandidate::chunk).toList();
+    }
+
+    /** Load each group within its original document and dataset and keep its matching leaves for packing. */
+    List<ContextCandidate> contextCandidates(List<Map<String, Object>> chunks, boolean sections) {
         Map<ParentKey, List<Map<String, Object>>> groups = new LinkedHashMap<>();
-        List<Map<String, Object>> remaining = new ArrayList<>();
+        List<ContextCandidate> remaining = new ArrayList<>();
         for (Map<String, Object> chunk : chunks) {
-            String parent = string(chunk.get("mom_id")), document = string(chunk.get("doc_id"));
+            String parent = sections ? string(chunk.get("section_id")) : "";
+            boolean section = !parent.isEmpty();
+            if (!section) parent = string(chunk.get("mom_id"));
+            String document = string(chunk.get("doc_id"));
             if (parent.isEmpty() || document.isEmpty()) {
-                remaining.add(chunk);
+                remaining.add(ContextCandidate.leaf(chunk));
                 continue;
             }
-            ParentKey key = new ParentKey(parent, document, string(chunk.get("kb_id")));
+            ParentKey key = new ParentKey(parent, document, string(chunk.get("kb_id")), section);
             groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(chunk);
         }
-        if (groups.isEmpty()) return chunks;
+        if (groups.isEmpty()) return remaining;
         int vectorSize = 1024;
         for (Map.Entry<ParentKey, List<Map<String, Object>>> entry : groups.entrySet()) {
             ParentKey key = entry.getKey();
             List<Map<String, Object>> children = entry.getValue();
-            Map<String, Object> parent;
+            Map<String, Object> parent = null;
             try {
                 parent = store.getParent(key.parentId(), key.documentId(), key.datasetId());
             } catch (Exception error) {
-                remaining.addAll(children);
-                continue;
+                // A failed lookup follows the same fallback as a missing context record.
             }
             if (parent == null
                     || !key.documentId().equals(parent.get("doc_id"))
                     || !key.datasetId().equals(parent.get("kb_id"))) {
-                remaining.addAll(children);
+                if (key.section()) remaining.addAll(contextCandidates(children, false));
+                else children.stream().map(ContextCandidate::leaf).forEach(remaining::add);
                 continue;
             }
             double[] similarities =
@@ -576,6 +615,8 @@ public final class StandardRetrieval {
             result.put("content_ltks", String.join(" ", content));
             for (String field : List.of("content_with_weight", "doc_id", "docnm_kwd", "kb_id"))
                 result.put(field, parent.get(field));
+            for (String field : List.of("section_kwd", "section_id", "context_level_kwd"))
+                if (parent.containsKey(field)) result.put(field, parent.get(field));
             result.put("important_kwd", important);
             result.put("image_id", parent.get("img_id") == null ? "" : parent.get("img_id"));
             result.put("similarity", average);
@@ -596,13 +637,13 @@ public final class StandardRetrieval {
                 }
                 if (vectorFound) break;
             }
-            remaining.add(result);
+            remaining.add(new ContextCandidate(result, children, key.section()));
         }
         // 原算法是交换排序，保持其非稳定的相等分数行为。
         for (int i = 0; i < remaining.size(); i++) {
             for (int j = i + 1; j < remaining.size(); j++) {
-                double left = remaining.get(i).get("similarity") instanceof Double score ? score : 0;
-                double right = remaining.get(j).get("similarity") instanceof Double score ? score : 0;
+                double left = remaining.get(i).chunk().get("similarity") instanceof Double score ? score : 0;
+                double right = remaining.get(j).chunk().get("similarity") instanceof Double score ? score : 0;
                 if (right > left) Collections.swap(remaining, i, j);
             }
         }

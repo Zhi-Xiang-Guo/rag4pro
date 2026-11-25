@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="rag4pro 知识库对话与检索工作台">
+    <title>rag4pro · 知识工作台</title>
+    <link rel="stylesheet" href="/workspace.css">
+    <script src="/workspace.js" defer></script>
+</head>
+<body>
+<div class="workspace">
+    <aside class="sidebar">
+        <a class="brand" href="/" aria-label="rag4pro 首页">
+            <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span>rag4pro<small>知识工作台</small></span>
+        </a>
+        <nav aria-label="工作台">
+            <button class="nav-item" data-page="chat" aria-current="page"><i class="icon chat-icon"></i>对话</button>
+            <button class="nav-item" data-page="library"><i class="icon library-icon"></i>知识库</button>
+            <button class="nav-item" data-page="retrieve"><i class="icon search-icon"></i>检索实验</button>
+        </nav>
+        <div class="recent">
+            <div class="recent-header"><span>最近对话</span><button id="new-chat" class="icon-button" title="新建对话" aria-label="新建对话">＋</button></div>
+            <div id="sessions" class="session-list"></div>
+        </div>
+        <div class="sidebar-footer">
+            <button id="open-connection" class="nav-item"><i class="icon connection-icon"></i>连接设置</button>
+            <a class="nav-item" href="/demo"><i class="icon demo-icon"></i>支付手册示例</a>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <h1 id="page-title">对话</h1>
+            <span id="connection-status" class="connection-status">正在连接</span>
+        </header>
+        <div id="notice" class="notice" role="status" hidden></div>
+
+        <section id="chat-page" class="chat-layout" aria-labelledby="page-title">
+            <div class="conversation">
+                <div id="chat-scroll" class="chat-scroll">
+                    <div id="chat-empty" class="chat-empty">
+                        <span class="hero-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+                        <h2>从知识库开始提问</h2>
+                        <p>在文档里找答案，点开引用核对原文。</p>
+                        <div id="examples" class="examples"></div>
+                    </div>
+                    <div id="messages" class="messages" aria-live="polite" aria-label="对话消息"></div>
+                </div>
+                <form id="chat-form" class="composer">
+                    <div class="composer-settings">
+                        <label class="select-label"><span>知识库</span><select id="chat-dataset" required></select></label>
+                        <label class="select-label"><span>检索</span><select id="chat-strategy"></select></label>
+                        <label class="select-label"><span>证据</span><select id="chat-context"></select></label>
+                        <label class="select-label"><span>回答</span><select id="chat-answer"><option value="extractive">证据摘录</option><option value="standard">综合回答</option></select></label>
+                    </div>
+                    <label class="sr-only" for="question">输入问题</label>
+                    <textarea id="question" rows="2" maxlength="2000" placeholder="输入要查询的问题…"></textarea>
+                    <div class="composer-footer"><span id="composer-hint">Enter 发送 · Shift + Enter 换行</span><button id="send" class="primary" type="submit">发送</button></div>
+                </form>
+            </div>
+            <aside class="inspector" aria-label="检索结果">
+                <div class="inspector-head">
+                    <h2>回答依据</h2>
+                    <div class="segmented" role="group" aria-label="查看依据">
+                        <button type="button" data-inspect="evidence" aria-pressed="true">证据</button>
+                        <button type="button" data-inspect="trace" aria-pressed="false">检索轨迹</button>
+                    </div>
+                </div>
+                <div id="inspector-content" class="inspector-content">
+                    <div class="placeholder"><i class="icon library-icon"></i><p>发送问题后查看命中的原文和检索过程。</p></div>
+                </div>
+            </aside>
+        </section>
+
+        <section id="library-page" class="section-page" aria-labelledby="page-title" hidden>
+            <div class="section-heading">
+                <div><h2>知识库管理</h2><p>管理文档、默认分块策略和索引块。</p></div>
+                <button id="create-dataset" type="button" class="primary">新建知识库</button>
+            </div>
+            <div class="library-layout">
+                <div class="panel library-list">
+                    <h3>知识库</h3>
+                    <div id="datasets"></div>
+                    <button id="load-demo" type="button" class="secondary">载入支付手册示例</button>
+                </div>
+                <div class="panel library-documents">
+                    <div class="panel-heading">
+                        <div><h3 id="library-name">选择知识库</h3><p id="library-config"></p></div>
+                        <div class="actions">
+                            <button id="edit-dataset" type="button" class="secondary" hidden>分块设置</button>
+                            <button id="delete-dataset" type="button" class="secondary danger" hidden>删除空库</button>
+                            <button id="open-import" type="button" class="primary" hidden>导入文档</button>
+                        </div>
+                    </div>
+                    <div id="documents" class="documents"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="retrieve-page" class="section-page" aria-labelledby="page-title" hidden>
+            <div class="section-heading">
+                <div><h2>检索策略对照</h2><p>同一问题、知识库和预算下，对照命中、上下文与耗时。</p></div>
+            </div>
+            <form id="retrieve-form" class="panel retrieve-form">
+                <div class="form-row search-row">
+                    <label>知识库<select id="retrieve-dataset" required></select></label>
+                    <label>检索问题<input id="retrieve-question" maxlength="2000" required placeholder="输入要对照的问题"></label>
+                </div>
+                <div class="form-row budgets">
+                    <label>最终 Top K<input id="top-k" type="number" min="1" max="50" value="8" required></label>
+                    <label>候选池<input id="candidate-k" type="number" min="2" max="256" value="64" required></label>
+                    <label>证据预算（tokens）<input id="evidence-budget" type="number" min="1" max="8192" value="1400" required></label>
+                </div>
+                <div class="compare-options">
+                    <fieldset><legend>基线</legend><label>召回<select id="baseline-strategy"></select></label><label>上下文<select id="baseline-context"></select></label></fieldset>
+                    <fieldset><legend>对照</legend><label>召回<select id="compare-strategy"></select></label><label>上下文<select id="compare-context"></select></label></fieldset>
+                </div>
+                <div class="actions"><button id="run-retrieve" class="primary" type="submit">运行对照</button></div>
+            </form>
+            <div id="comparison" class="comparison" aria-live="polite"></div>
+        </section>
+    </main>
+</div>
+
+<dialog id="dataset-dialog" aria-labelledby="dataset-title">
+    <form id="dataset-form">
+        <div class="dialog-heading"><h2 id="dataset-title">新建知识库</h2><button type="button" data-close class="icon-button" aria-label="关闭">×</button></div>
+        <label>名称<input id="dataset-name" maxlength="100" required placeholder="例如 团队值班手册"></label>
+        <div class="form-row">
+            <label>默认分块<select id="dataset-strategy"></select></label>
+            <label>每块 tokens<input id="dataset-size" type="number" min="32" max="1024" value="160" required></label>
+        </div>
+        <div class="form-row">
+            <label>语言<select id="dataset-language"><option value="">自动检测</option><option value="Chinese">中文</option><option value="English">英文</option></select></label>
+            <label id="dataset-overlap-label" hidden>固定窗口重叠（%）<input id="dataset-overlap" type="number" min="0" max="50" value="0"></label>
+        </div>
+        <p id="dataset-description" class="field-hint"></p>
+        <p id="dataset-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-actions"><button type="button" data-close class="secondary">取消</button><button class="primary" type="submit">保存</button></div>
+    </form>
+</dialog>
+
+<dialog id="import-dialog" class="wide-dialog" aria-labelledby="import-title">
+    <form id="import-form">
+        <div class="dialog-heading"><h2 id="import-title">导入文档</h2><button type="button" data-close class="icon-button" aria-label="关闭">×</button></div>
+        <div class="form-row">
+            <label>标题<input id="document-title" maxlength="180" required placeholder="例如 故障处理手册.md"></label>
+            <label>选择文件<input id="document-file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>
+        </div>
+        <label>正文<textarea id="document-text" rows="7" required placeholder="选择文件或粘贴文本"></textarea></label>
+        <div class="form-row">
+            <label>格式<select id="document-format"><option value="md">Markdown</option><option value="txt">纯文本</option></select></label>
+            <label>分块<select id="document-strategy"></select></label>
+            <label>每块 tokens<input id="document-size" type="number" min="32" max="1024" value="160" required></label>
+            <label id="document-overlap-label" hidden>重叠（%）<input id="document-overlap" type="number" min="0" max="50" value="0"></label>
+        </div>
+        <p id="document-description" class="field-hint"></p>
+        <div id="chunk-preview" class="preview" hidden></div>
+        <p id="import-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-actions"><button id="preview-chunks" class="secondary" type="button">预览分块</button><button id="import-document" class="primary" type="submit">建立索引</button></div>
+    </form>
+</dialog>
+
+<dialog id="chunks-dialog" class="wide-dialog" aria-labelledby="chunks-title">
+    <div class="dialog-heading"><h2 id="chunks-title">索引块</h2><button type="button" data-close class="icon-button" aria-label="关闭">×</button></div>
+    <div id="chunks-view" class="preview"></div>
+</dialog>
+
+<dialog id="connection-dialog" aria-labelledby="connection-title">
+    <form id="connection-form">
+        <div class="dialog-heading"><h2 id="connection-title">连接设置</h2><button type="button" data-close class="icon-button" aria-label="关闭">×</button></div>
+        <label>服务访问令牌<input id="connection-token" type="password" autocomplete="off" placeholder="服务启用访问令牌时填写"></label>
+        <div id="connection-details" class="field-hint"></div>
+        <p id="connection-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-actions"><button type="submit" class="primary">重新连接</button></div>
+    </form>
+</dialog>
+</body>
+</html>

@@ -61,7 +61,7 @@ final class ExtractiveChat {
     ExtractiveChat(Selector selector, ContextBuilder.TokenCounter tokens, int contextLength) {
         this.selector = selector;
         this.tokens = tokens;
-        // Leave space for generation and the Ollama chat template. Count the JSON actually sent.
+        // Leave space for generation and the model's chat template. Count the JSON actually sent.
         this.promptBudget = Math.min(contextLength, 8192) * 3 / 4;
     }
 

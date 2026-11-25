@@ -18,7 +18,7 @@ final class DemoScenario {
 
         Map<String, Object> indexRequest() {
             return Map.of("docId", docId, "title", title, "text", text, "fileType", "txt",
-                    "language", "Chinese", "chunkTokenSize", 0, "delimiters", List.of("\n"),
+                    "language", "Chinese", "chunkStrategy", "general", "chunkTokenSize", 0, "delimiters", List.of("\n"),
                     "metadata", metadata());
         }
 

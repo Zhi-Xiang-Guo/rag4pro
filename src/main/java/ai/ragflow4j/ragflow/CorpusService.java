@@ -23,7 +23,8 @@ public final class CorpusService {
     private final ElasticsearchStore store;
     private final DocumentCatalog catalog;
     private final IndexingPipeline indexing;
-    private final GeneralChunker chunker;
+    private final ChunkingStrategies chunker;
+    private final Cl100k tokens;
     private final StandardRetrieval retrieval;
     private final ChatPipeline chat;
     private final ExtractiveChat extractiveChat;
@@ -78,9 +79,10 @@ public final class CorpusService {
         this.contentCache = contentCache;
         this.embeddingIdentity = embeddings.identity() + "|ragflow-title-blend-v1";
         Cl100k counter = new Cl100k();
+        tokens = counter;
         indexing =
                 new IndexingPipeline(lexical, counter, indexEmbedder, contentCache, embeddings.identity());
-        chunker = new GeneralChunker(counter);
+        chunker = new ChunkingStrategies(counter);
         retrieval =
                 new StandardRetrieval(
                         store, new QueryBuilder(lexical), new QueryEmbeddingCache(
@@ -118,24 +120,10 @@ public final class CorpusService {
                 text = required(request, "text");
         // 用户传的 docId 只在数据集内唯一；内部 ID 同时包含数据集，避免不同数据集互相覆盖。
         String docId = DocumentCatalog.identity(dataset, externalId),
-                language = string(request, "language", datasetLanguage(dataset));
-        String format =
-                string(request, "fileType", name.toLowerCase(Locale.ROOT).endsWith(".md") ? "md" : "txt");
-        GeneralChunker.Config defaults = GeneralChunker.Config.defaults();
-        var config =
-                new GeneralChunker.Config(
-                        integer(request, "chunkTokenSize", 512),
-                        strings(request, "delimiters", defaults.delimiters()),
-                        strings(request, "childrenDelimiters", List.of()),
-                        number(request, "overlapPercent", 0));
-        List<Map<String, Object>> pieces;
-        List<String> warnings = new ArrayList<>();
-        if (format.equals("md")) {
-            var parsed = new MarkdownParser().parse(text);
-            warnings.addAll(parsed.warnings());
-            pieces = chunker.chunkMarkdown(parsed.units(), config);
-        } else if (format.equals("txt")) pieces = chunker.chunkText(text, config);
-        else throw new IllegalArgumentException("当前入口支持 txt/md，其他解析策略需要对应原版解析器");
+                language = string(request, "language", importLanguage(dataset));
+        var plan = chunkPlan(request, dataset, name, text);
+        var config = plan.config();
+        List<String> warnings = new ArrayList<>(plan.warnings());
         var lexicalConfig =
                 new IndexingPipeline.Config(
                         language,
@@ -144,12 +132,10 @@ public final class CorpusService {
                         number(request, "filenameEmbeddingWeight", 0.1),
                         strings(request, "embeddingFields", List.of("text")));
         // 原 chunker/register.go 在 Tokenizer 之前盖章，缓存依赖同一个确定性 chunk ID。
-        for (Map<String, Object> piece : pieces) {
-            piece.putIfAbsent("id", hash(Objects.toString(piece.get("text"), "") + docId));
-        }
+        assignChunkIds(plan, docId);
         String taskId = UUID.randomUUID().toString();
         List<Map<String, Object>> chunks =
-                new ArrayList<>(indexing.process(name, pieces, lexicalConfig, taskId));
+                new ArrayList<>(indexing.process(name, plan.pieces(), lexicalConfig, taskId));
         if (chunks.isEmpty()) throw new IllegalArgumentException("没有可索引的文本块");
         for (var entry : catalog.list(dataset))
             if (!embeddingIdentity.equals(entry.get("embeddingIdentity")))
@@ -182,7 +168,10 @@ public final class CorpusService {
                                 "sourceSha256",
                                 DocumentCatalog.sourceDigest(text.getBytes(StandardCharsets.UTF_8)),
                                 "embeddingIdentity",
-                                embeddingIdentity));
+                                embeddingIdentity,
+                                "chunkStrategy", plan.strategy(),
+                                "chunkTokenSize", config.chunkTokenSize(),
+                                "overlapPercent", config.overlapPercent()));
         if (request.containsKey("metadata")) {
             if (!(request.get("metadata") instanceof Map<?, ?> metadata))
                 throw new IllegalArgumentException("metadata 必须为对象");
@@ -227,7 +216,7 @@ public final class CorpusService {
                 "trace",
                 Map.of(
                         "chunkPolicy",
-                        "GeneralChunker",
+                        plan.strategy().equals("general") ? "GeneralChunker" : plan.strategy(),
                         "chunkTokenSize",
                         config.chunkTokenSize(),
                         "overlapPercent",
@@ -247,6 +236,7 @@ public final class CorpusService {
             throw new IllegalArgumentException("documents requires 1..64 new documents");
         List<Map<String, Object>> requests = new ArrayList<>();
         List<IndexingPipeline.Document> prepared = new ArrayList<>();
+        List<ChunkingStrategies.Plan> plans = new ArrayList<>();
         Set<String> unique = new HashSet<>();
         for (Object value : raw) {
             if (!(value instanceof Map<?, ?> map)) throw new IllegalArgumentException("document must be an object");
@@ -254,20 +244,13 @@ public final class CorpusService {
             String id = required(request, "docId"), name = required(request, "title"), text = required(request, "text");
             if (!unique.add(id) || catalog.get(dataset, id) != null)
                 throw new IllegalArgumentException("batch accepts unique new docIds only: " + id);
-            String format = string(request, "fileType", name.toLowerCase(Locale.ROOT).endsWith(".md") ? "md" : "txt");
-            var defaults = GeneralChunker.Config.defaults();
-            var config = new GeneralChunker.Config(integer(request, "chunkTokenSize", 512),
-                    strings(request, "delimiters", defaults.delimiters()),
-                    strings(request, "childrenDelimiters", List.of()), number(request, "overlapPercent", 0));
-            List<Map<String, Object>> pieces;
-            if (format.equals("txt")) pieces = chunker.chunkText(text, config);
-            else if (format.equals("md")) pieces = chunker.chunkMarkdown(new MarkdownParser().parse(text).units(), config);
-            else throw new IllegalArgumentException("batch supports txt/md");
-            if (pieces.isEmpty()) throw new IllegalArgumentException("empty document");
+            var plan = chunkPlan(request, dataset, name, text);
+            if (plan.pieces().isEmpty()) throw new IllegalArgumentException("empty document");
             String internal = DocumentCatalog.identity(dataset, id);
-            for (var piece : pieces) piece.putIfAbsent("id", hash(Objects.toString(piece.get("text"), "") + internal));
-            prepared.add(new IndexingPipeline.Document(name, pieces,
-                    new IndexingPipeline.Config(string(request, "language", datasetLanguage(dataset)), true, true,
+            assignChunkIds(plan, internal);
+            plans.add(plan);
+            prepared.add(new IndexingPipeline.Document(name, plan.pieces(),
+                    new IndexingPipeline.Config(string(request, "language", importLanguage(dataset)), true, true,
                             number(request, "filenameEmbeddingWeight", 0.1), strings(request, "embeddingFields", List.of("text")))));
             if (request.containsKey("metadata") && !(request.get("metadata") instanceof Map<?, ?>))
                 throw new IllegalArgumentException("metadata must be an object");
@@ -290,7 +273,9 @@ public final class CorpusService {
             String body = required(request, "text");
             Map<String, Object> details = new LinkedHashMap<>(Map.of("title", required(request, "title"),
                     "language", prepared.get(i).config().language(), "chunkCount", count, "embeddingIdentity", embeddingIdentity,
-                    "sourceSha256", DocumentCatalog.sourceDigest(body.getBytes(StandardCharsets.UTF_8))));
+                    "sourceSha256", DocumentCatalog.sourceDigest(body.getBytes(StandardCharsets.UTF_8)),
+                    "chunkStrategy", plans.get(i).strategy(), "chunkTokenSize", plans.get(i).config().chunkTokenSize(),
+                    "overlapPercent", plans.get(i).config().overlapPercent()));
             if (request.containsKey("metadata")) details.put("metadata", request.get("metadata"));
             entries.put(id, details);
             all.addAll(chunks);
@@ -303,6 +288,43 @@ public final class CorpusService {
         }
         return Map.of("datasetId", dataset, "documentCount", entries.size(), "chunkCount", all.size(),
                 "docIds", List.copyOf(entries.keySet()));
+    }
+
+    private ChunkingStrategies.Plan chunkPlan(Map<String, Object> request, String dataset, String title, String text) {
+        var options = catalog.dataset(dataset);
+        String savedStrategy = string(options, "chunkStrategy", "general");
+        String strategy = string(request, "chunkStrategy", savedStrategy);
+        double overlap = strategy.equals(savedStrategy) ? number(options, "overlapPercent", 0) : 0;
+        var defaults = GeneralChunker.Config.defaults();
+        var config = new GeneralChunker.Config(
+                integer(request, "chunkTokenSize", integer(options, "chunkTokenSize", defaults.chunkTokenSize())),
+                strings(request, "delimiters", defaults.delimiters()),
+                strings(request, "childrenDelimiters", List.of()),
+                number(request, "overlapPercent", overlap));
+        String format = string(request, "fileType", title.toLowerCase(Locale.ROOT).endsWith(".md") ? "md" : "txt");
+        return chunker.plan(text, format, strategy, config);
+    }
+
+    private void assignChunkIds(ChunkingStrategies.Plan plan, String documentId) {
+        for (int i = 0; i < plan.pieces().size(); i++) {
+            var piece = plan.pieces().get(i);
+            String text = Objects.toString(piece.get("text"), "");
+            String key = plan.strategy().equals("general") ? text + documentId
+                    : documentId + "\0" + plan.strategy() + "\0" + i + "\0" + text;
+            piece.putIfAbsent("id", hash(key));
+        }
+    }
+
+    public synchronized Map<String, Object> previewChunks(Map<String, Object> request) {
+        var plan = chunkPlan(request, string(request, "datasetId", ""), required(request, "title"), required(request, "text"));
+        List<Map<String, Object>> preview = plan.pieces().stream().limit(30).map(piece -> Map.of(
+                "text", piece.get("text"), "tokens", piece.getOrDefault("tk_nums", 0),
+                "section", piece.getOrDefault("section_kwd", ""), "hasParent", piece.containsKey("mom"))).toList();
+        return Map.of("chunkStrategy", plan.strategy(), "total", plan.pieces().size(),
+                "parentCount", plan.pieces().stream().filter(c -> c.containsKey("mom"))
+                        .map(c -> c.getOrDefault("parent_ref", c.get("mom"))).distinct().count(),
+                "sectionCount", plan.pieces().stream().map(c -> c.get("section_ref")).filter(Objects::nonNull).distinct().count(),
+                "pieces", preview, "warnings", plan.warnings());
     }
 
     /**
@@ -361,30 +383,35 @@ public final class CorpusService {
             String mom = Objects.toString(c.remove("mom"), "");
             Object fallbackMom = c.remove("mom_with_weight");
             if (mom.isBlank() && fallbackMom instanceof String textMom) mom = textMom;
+            Object parentRef = c.remove("parent_ref");
+            String section = Objects.toString(c.remove("section_context"), "");
+            Object sectionRef = c.remove("section_ref");
+            if (!section.isBlank()) {
+                String id = hash(dataset + "\0" + docId + "\0section\0" + sectionRef + "\0" + section);
+                c.put("section_id", id);
+                if (seen.add(id)) parents.add(contextChunk(c, id, section, "section", order++));
+            }
             if (!mom.isBlank()) {
-                String id = hash(dataset + "\0" + docId + "\0" + mom);
+                String identity = parentRef == null ? mom : "parent\0" + parentRef + "\0" + mom;
+                String id = hash(dataset + "\0" + docId + "\0" + identity);
                 c.put("mom_id", id);
-                if (seen.add(id)) {
-                    Map<String, Object> parent = new LinkedHashMap<>();
-                    for (String key :
-                            List.of(
-                                    "doc_id",
-                                    "docnm_kwd",
-                                    "kb_id",
-                                    "position_int",
-                                    "create_timestamp_flt",
-                                    "page_num_int",
-                                    "top_int"))
-                        if (c.containsKey(key)) parent.put(key, c.get(key));
-                    parent.put("id", id);
-                    parent.put("content_with_weight", mom);
-                    parent.put("available_int", 0);
-                    parent.put("chunk_order_int", order++);
-                    parents.add(parent);
-                }
+                if (seen.add(id)) parents.add(contextChunk(c, id, mom, "parent", order++));
             }
         }
         chunks.addAll(parents);
+    }
+
+    private Map<String, Object> contextChunk(Map<String, Object> leaf, String id, String content, String level, int order) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        for (String key : List.of("doc_id", "docnm_kwd", "kb_id", "position_int", "create_timestamp_flt",
+                "page_num_int", "top_int", "section_kwd", "section_id"))
+            if (leaf.containsKey(key)) context.put(key, leaf.get(key));
+        context.put("id", id);
+        context.put("content_with_weight", content);
+        context.put("available_int", 0);
+        context.put("chunk_order_int", order);
+        context.put("context_level_kwd", level);
+        return context;
     }
 
     /**
@@ -393,6 +420,55 @@ public final class CorpusService {
     public synchronized StandardRetrieval.Result retrieve(Map<String, Object> input)
             throws Exception {
         return retrieval.retrieve(retrievalRequest(input, false));
+    }
+
+    public synchronized Map<String, Object> retrieveContext(Map<String, Object> input) throws Exception {
+        var request = retrievalRequest(input, false);
+        long started = System.nanoTime();
+        var retrieved = retrieval.retrieve(request);
+        double retrievalMs = (System.nanoTime() - started) / 1e6;
+        var evidence = collectEvidence(input, request.datasetId, retrieved.chunks(), 1600);
+        // Use copies because leaf mode can share the original hit objects.
+        var hits = retrieved.chunks().stream().map(c -> (Map<String, Object>) new LinkedHashMap<>(c)).toList();
+        enrichDocumentMetadata(request.datasetId, hits);
+        return Map.of("query", request.question, "total", retrieved.total(), "retrievalMs", retrievalMs,
+                "trace", retrieved.trace(), "hits", hits.stream().map(CitationService::formatChunk).toList(),
+                "evidence", evidence.chunks().stream().map(CitationService::formatChunk).toList(),
+                "evidenceTokens", evidence.tokens(), "contextMode", evidence.mode());
+    }
+
+    private record Evidence(List<Map<String, Object>> chunks, int tokens, String mode) {}
+
+    private Evidence collectEvidence(Map<String, Object> input, String dataset,
+                                     List<Map<String, Object>> hits, int defaultBudget) {
+        String mode = string(input, "contextMode", "parent");
+        int budget = integer(input, "evidenceBudget", defaultBudget);
+        if (budget < 0 || budget > 8192) throw new IllegalArgumentException("证据预算须为 0–8192 tokens");
+        var candidates = new ArrayDeque<>(switch (mode) {
+            case "leaf" -> hits.stream().map(StandardRetrieval.ContextCandidate::leaf).toList();
+            case "parent" -> retrieval.contextCandidates(hits, false);
+            case "section" -> retrieval.contextCandidates(hits, true);
+            default -> throw new IllegalArgumentException("未知证据扩展层级");
+        });
+        List<Map<String, Object>> packed = new ArrayList<>();
+        int used = 0;
+        while (!candidates.isEmpty()) {
+            var candidate = candidates.removeFirst();
+            var chunk = candidate.chunk();
+            int size = tokens.count(ContextBuilder.text(chunk, "content_with_weight", "content"));
+            if (budget == 0 || size <= budget - used) {
+                packed.add(new LinkedHashMap<>(chunk));
+                used += size;
+            } else {
+                // Try a smaller context at this rank before moving on to unrelated hits.
+                var smaller = candidate.section()
+                        ? retrieval.contextCandidates(candidate.children(), false)
+                        : candidate.children().stream().map(StandardRetrieval.ContextCandidate::leaf).toList();
+                smaller.reversed().forEach(candidates::addFirst);
+            }
+        }
+        enrichDocumentMetadata(dataset, packed);
+        return new Evidence(packed, used, mode);
     }
 
     /**
@@ -433,7 +509,7 @@ public final class CorpusService {
         request.similarityThreshold = number(input, "threshold", chatting ? 0.1 : 0.2);
         String mode = string(input, "mode", "hybrid");
         request.strategy = string(input, "strategy", "standard");
-        if (!Set.of("standard", "lexical", "dense", "rrf").contains(request.strategy))
+        if (!Set.of("standard", "lexical", "dense", "rrf", "rrf_diverse").contains(request.strategy))
             throw new IllegalArgumentException("unknown strategy");
         request.vectorOnly = mode.equals("vector");
         if (!Set.of("vector", "bm25", "hybrid").contains(mode))
@@ -485,6 +561,10 @@ public final class CorpusService {
         return language;
     }
 
+    private String importLanguage(String dataset) {
+        return string(catalog.dataset(dataset), "language", datasetLanguage(dataset));
+    }
+
     void enrichDocumentMetadata(String dataset, List<Map<String, Object>> chunks) {
         Map<String, Map<String, Object>> documents = new HashMap<>();
         for (var document : catalog.list(dataset))
@@ -526,13 +606,22 @@ public final class CorpusService {
                         .toList();
         recentQuestions = recentQuestions.subList(Math.max(0, recentQuestions.size() - 3), recentQuestions.size());
         String question = String.join(" ", recentQuestions);
+        String latestQuestion = recentQuestions.getLast();
+        boolean rewrite = bool(input, "refineMultiturn", !extractive) && recentQuestions.size() > 1;
+        List<String> questionsForEvidence = recentQuestions;
         List<String> warnings = new ArrayList<>();
-        // 证据摘录使用最近的用户问题做检索，避免自由改写把助手的话当成新问题。
-        if (!extractive && bool(input, "refineMultiturn", true)
-                && messages.stream().filter(m -> m.role().equals("user")).count() > 1) {
-            var refined = refiner.fullQuestionOutcome(messages, "");
-            if (refined.error() == null && !refined.text().isBlank()) question = refined.text();
-            else warnings.add("多轮问题改写失败，已保留最近三个用户问题");
+        if (rewrite) {
+            var refined = extractive ? QueryRefiner.standaloneFollowUp(recentQuestions, extractiveModel)
+                    : refiner.fullQuestionOutcome(messages, "");
+            if (refined.error() == null && !refined.text().isBlank()) {
+                question = refined.text();
+            } else if (extractive) {
+                question = latestQuestion;
+                warnings.add("追问改写失败，已检索当前问题");
+            } else {
+                warnings.add("多轮问题改写失败，已保留最近三个用户问题");
+            }
+            if (extractive) questionsForEvidence = List.of(question);
         }
         List<String> languages = strings(input, "crossLanguages", List.of());
         if (!languages.isEmpty()) question = refiner.crossLanguages(question, languages);
@@ -551,17 +640,15 @@ public final class CorpusService {
         long retrievalStarted = System.nanoTime();
         var retrieved = retrieval.retrieve(searchRequest);
         double retrievalMs = (System.nanoTime() - retrievalStarted) / 1e6;
-        // 子块适合精确匹配；回答时换成父块，为模型补齐同一段落的上下文。
-        var expanded = retrieval.expandParents(retrieved.chunks());
-        enrichDocumentMetadata(required(input, "datasetId"), expanded);
+        var evidence = collectEvidence(input, searchRequest.datasetId, retrieved.chunks(), 0);
+        var expanded = evidence.chunks();
         var sources = new ChatPipeline.Retrieval(expanded, retrieved.docAggs());
         boolean quote = bool(input, "quote", true);
         ChatPipeline.Result result;
         if (extractive) {
-            String latest = recentQuestions.getLast();
-            String refusal = latest.codePoints().anyMatch(cp -> Character.UnicodeScript.of(cp) == Character.UnicodeScript.HAN)
+            String refusal = latestQuestion.codePoints().anyMatch(cp -> Character.UnicodeScript.of(cp) == Character.UnicodeScript.HAN)
                     ? "资料不足，无法回答。" : "No supporting evidence was found in the knowledge base.";
-            result = extractiveChat.complete(recentQuestions, sources, refusal, quote);
+            result = extractiveChat.complete(questionsForEvidence, sources, refusal, quote);
         } else {
             result = generateAnswer(input, messages, sources, quote);
         }
@@ -575,6 +662,10 @@ public final class CorpusService {
         output.put("prompt", result.prompt());
         output.put("retrievalTrace", retrieved.trace());
         output.put("warnings", warnings);
+        if (input.containsKey("contextMode") || input.containsKey("evidenceBudget")) {
+            output.put("contextMode", evidence.mode());
+            output.put("evidenceTokens", evidence.tokens());
+        }
         if (extractive) {
             output.put("answerMode", answerMode);
             output.put("answerStatus", result.emptyResponse() ? "insufficient_evidence" : "answered");
@@ -626,6 +717,30 @@ public final class CorpusService {
 
     public synchronized List<Map<String, Object>> documents(String dataset) {
         return catalog.list(dataset);
+    }
+
+    public synchronized List<Map<String, Object>> datasets() {
+        return catalog.datasets();
+    }
+
+    public synchronized Map<String, Object> saveDataset(Map<String, Object> input) throws Exception {
+        String id = required(input, "datasetId"), name = required(input, "name").strip();
+        if (!id.matches("[a-z0-9][a-z0-9_-]{0,63}") || name.length() > 100)
+            throw new IllegalArgumentException("知识库 ID 或名称超出允许范围");
+        String strategy = string(input, "chunkStrategy", "parent_child");
+        String language = string(input, "language", "");
+        if (!Set.of("", "Chinese", "English").contains(language))
+            throw new IllegalArgumentException("请选择自动检测、中文或英文");
+        var config = new GeneralChunker.Config(integer(input, "chunkTokenSize", 160), List.of(),
+                List.of(), number(input, "overlapPercent", 0));
+        ChunkingStrategies.validate(strategy, config);
+        catalog.putDataset(id, Map.of("name", name, "chunkStrategy", strategy, "language", language,
+                "chunkTokenSize", config.chunkTokenSize(), "overlapPercent", config.overlapPercent()));
+        return catalog.datasets().stream().filter(d -> id.equals(d.get("datasetId"))).findFirst().orElseThrow();
+    }
+
+    public synchronized void deleteEmptyDataset(String id) throws Exception {
+        catalog.deleteEmptyDataset(id);
     }
 
     public synchronized List<Map<String, Object>> chunks(String dataset, String doc)

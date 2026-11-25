@@ -1,5 +1,6 @@
 package ai.ragflow4j.ragflow;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -112,6 +114,50 @@ class ExtractiveChatTest {
                     () -> app.complete(List.of("退款多久？"), SOURCES, REFUSAL, true));
             assertEquals(2, failure.attempts());
             assertEquals(4, calls.get());
+        } finally {
+            api.stop(0);
+        }
+    }
+
+    @Test
+    void openAiChatAndEvidenceSelectionUseTheSameAuthenticatedEndpoint() throws Exception {
+        var request = new AtomicReference<JsonNode>();
+        var authorization = new AtomicReference<String>();
+        var api = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        api.createContext("/gateway/chat/completions", exchange -> {
+            try (exchange) {
+                request.set(JSON.readTree(exchange.getRequestBody()));
+                authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+                byte[] payload = JSON.writeValueAsBytes(Map.of(
+                        "choices", List.of(Map.of("message", Map.of(
+                                "content", "{\"answer\":\"draft\",\"ids\":[0]}",
+                                "reasoning_content", "Checked the source"))),
+                        "usage", Map.of("total_tokens", 42)));
+                exchange.sendResponseHeaders(200, payload.length);
+                exchange.getResponseBody().write(payload);
+            }
+        });
+        api.start();
+        try {
+            URI base = URI.create("http://127.0.0.1:" + api.getAddress().getPort() + "/gateway/");
+            var client = LocalChatModel.openAi(base, "test-key", "remote-test", 8192);
+            var reply = client.complete(List.of(new ContextBuilder.Message("user", "退款多久？")),
+                    Map.of("max_tokens", 128, "stream", true, "num_ctx", 4096));
+            assertEquals("Bearer test-key", authorization.get());
+            assertEquals("remote-test", request.get().path("model").asText());
+            assertEquals(128, request.get().path("max_tokens").asInt());
+            assertFalse(request.get().path("stream").asBoolean());
+            assertFalse(request.get().has("num_ctx"));
+            assertEquals("Checked the source", reply.reasoning());
+            assertEquals(42, reply.usage().get("total_tokens"));
+
+            var app = new ExtractiveChat(client::selectEvidence, new Cl100k(), client.contextLength());
+            var result = app.complete(List.of("退款多久？"), SOURCES, REFUSAL, true);
+            assertTrue(result.answer().contains("3 个工作日"));
+            assertEquals(192, request.get().path("max_tokens").asInt());
+            assertEquals("json_schema", request.get().path("response_format").path("type").asText());
+            assertTrue(request.get().at("/response_format/json_schema/schema/properties/ids").isObject());
+            assertFalse(request.get().has("options"));
         } finally {
             api.stop(0);
         }

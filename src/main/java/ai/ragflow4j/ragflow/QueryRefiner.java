@@ -9,6 +9,7 @@
 package ai.ragflow4j.ragflow;
 
 import ai.ragflow4j.ragflow.ContextBuilder.Message;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +23,19 @@ import java.util.*;
  * ChatPipeline 单独生成。
  */
 public final class QueryRefiner {
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Map<String, Object> QUESTION_SCHEMA = Map.of("type", "object",
+            "properties", Map.of("question", Map.of("type", "string")),
+            "required", List.of("question"), "additionalProperties", false);
+    private static final String STANDALONE_QUESTION = """
+            只输出当前问题的可独立检索版本。历史只补充缺少的动作、对象和指代。
+            保留当前问题要问的属性或动作。当前问题已明确时原样返回。保持当前问题的语言。
+            示例输入 {"history":["导出报表失败后，要等多久再重试？"],"question":"那最多几次？"}
+            示例输出 {"question":"报表导出失败后最多允许重试几次？"}
+            示例输入 {"history":["账号会锁定多久？"],"question":"那查询登录限制需要什么角色？"}
+            示例输出 {"question":"那查询登录限制需要什么角色？"}
+            """;
+
     public record Outcome(String text, Exception error) {
     }
 
@@ -39,6 +53,26 @@ public final class QueryRefiner {
 
     public String fullQuestion(List<Message> messages, String language) {
         return fullQuestionOutcome(messages, language).text();
+    }
+
+    /** Limit follow-up rewriting to recent user questions, and require a single structured question. */
+    static Outcome standaloneFollowUp(List<String> questions, LocalChatModel model) {
+        String latest = questions.getLast();
+        try {
+            String input = JSON.writeValueAsString(Map.of("history", questions.subList(0, questions.size() - 1),
+                    "question", latest));
+            var result = model.complete(List.of(new Message("system", STANDALONE_QUESTION), new Message("user", input)),
+                    Map.of("max_tokens", 128, "temperature", 0), QUESTION_SCHEMA, Duration.ofSeconds(12));
+            var field = JSON.readTree(result.answer()).path("question");
+            if (!field.isTextual() || field.asText().isBlank())
+                throw new IllegalArgumentException("追问改写没有返回独立问题");
+            String rewritten = field.asText().strip();
+            if (!rewritten.equals(latest) && questions.subList(0, questions.size() - 1).contains(rewritten))
+                throw new IllegalArgumentException("追问改写返回了历史问题");
+            return new Outcome(rewritten, null);
+        } catch (Exception error) {
+            return new Outcome(latest, error);
+        }
     }
 
     public Outcome fullQuestionOutcome(List<Message> messages, String language) {

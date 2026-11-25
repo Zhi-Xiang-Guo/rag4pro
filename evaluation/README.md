@@ -2,6 +2,27 @@
 
 此目录实现“冻结数据 → 入库 → 开发集对照 → 冻结候选 → 留出测试 → 门禁 → 逐题诊断 → 面试证据”。结果以本次生成的 artifacts 为准。它是面向上线验收的测评基础，并不代表系统已经达到企业生产验收标准。
 
+## 分块与证据回填
+
+`compare_chunking.py` 从 HotpotQA distractor 官方验证集固定划出 24 道校准题和 100 道留出题。每题只检索官方提供的候选文章，五组配置共用同一个网关向量模型、候选池 32、最终 Top 8 和证据正文 512 tokens。金标支持句只用于评分。脚本会保留每题排序、完整支持句和用量，并校验入库语料指纹。
+
+```bash
+# 先按下方运行步骤配置网关及 Python 环境。
+EVIDENCE_RAG_EVAL_PROJECT=rag4pro-hotpot EVIDENCE_RAG_EVAL_HTTP_PORT=18082 \
+  docker compose -f compose.yaml -f evaluation/compose.eval.yaml up -d --build --wait
+mkdir -p evaluation/data/hotpotqa
+curl -fL 'https://huggingface.co/datasets/hotpotqa/hotpot_qa/resolve/1908d6afbbead072334abe2965f91bd2709910ab/distractor/validation-00000-of-00001.parquet' \
+  -o evaluation/data/hotpotqa/dev-distractor.parquet
+.venv-eval/bin/python evaluation/compare_chunking.py --url http://127.0.0.1:18082 \
+  --source evaluation/data/hotpotqa/dev-distractor.parquet --split calibration \
+  --out evaluation/runs/rag4pro-hotpot/calibration
+.venv-eval/bin/python evaluation/compare_chunking.py --url http://127.0.0.1:18082 \
+  --source evaluation/data/hotpotqa/dev-distractor.parquet --split holdout \
+  --out evaluation/runs/rag4pro-hotpot/holdout
+```
+
+语料文件 SHA-256 为 `c20b638ca82b21d04fe12e14ff417ad05153d4d215a65de54497fca4e972f7c6`。上面的 HotpotQA 服务和 SciFact 使用不同 Compose 项目，分别持有索引与文档目录。评测 Compose 配置已开启查询向量缓存。复现耗时时使用同一台机器运行各策略。`retrievalMs` 计量召回阶段，`requestMs` 计量整个请求。[HotpotQA 数据与论文入口](https://hotpotqa.github.io/)
+
 ## 支付手册留出集
 
 支付手册评测使用与浏览器相同的 `/api/demo/chat`。它通过 API 建立索引、校验示例原文和 SHA-256，金标只用于评分。先跑 12 道开发题，冻结源码、题集、语料、模型和验收脚本，再运行 36 道留出题。
@@ -16,7 +37,7 @@ python3 evaluation/payment_qa.py --labels evaluation/payment-qa-v2.json --split 
 
 ## 运行
 
-完整检索评测使用 Python 3.9+、Docker Compose 2.24.4+ 和本地 Ollama。先按首页下载模型。默认嵌入模型为 `bge-m3`，回答模型为 `qwen3:4b`。如果希望复跑历史原提示词对照，额外下载 `qwen2.5:0.5b` 并用 `EVIDENCE_RAG_CHAT_MODEL` 选择它。
+完整检索评测使用 Python 3.9+ 和 Docker Compose 2.24.4+。评测和服务共用项目根目录的 `.env`，按示例配置 OpenAI 兼容网关。入库前可调用 `/api/health` 核对网关向量模型、聊天模型及 Elasticsearch 索引。更换向量模型后用新的评测索引入库。[配置示例](../.env.example)
 
 ```bash
 python3 -m venv .venv-eval
@@ -69,10 +90,9 @@ python3 evaluation/build_report.py
 
 ### 证据摘录复测
 
-评测 Compose 的证据摘录使用本地 `qwen3:4b`。原版回答继续使用 `EVIDENCE_RAG_CHAT_MODEL`，便于保留同一套对照。配置 `EVIDENCE_RAG_EXTRACTIVE_MODEL` 可以选择另一个已安装的 Ollama 模型。
+评测 Compose 的证据摘录默认使用 `EVIDENCE_RAG_CHAT_MODEL`，也可配置 `EVIDENCE_RAG_EXTRACTIVE_MODEL` 指定同一个服务的其他模型。
 
 ```bash
-ollama pull qwen3:4b
 docker compose -f compose.yaml -f evaluation/compose.eval.yaml up -d --build --wait
 python3 evaluation/qa.py --candidate extractive --split dev --url http://127.0.0.1:18081 \
   --out evaluation/runs/answer-v2/qa-dev

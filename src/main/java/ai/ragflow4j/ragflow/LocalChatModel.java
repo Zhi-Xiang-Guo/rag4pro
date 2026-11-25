@@ -1,5 +1,6 @@
 package ai.ragflow4j.ragflow;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -9,11 +10,13 @@ import java.time.Duration;
 import java.util.*;
 
 /**
- * 本机 Ollama 原生协议适配。与 RAG 编排独立，消息、生成参数和模型 usage 原样传递。
+ * 聊天模型 HTTP 客户端，负责 Ollama 原生协议与 OpenAI 兼容协议的请求和响应转换。
  */
 public final class LocalChatModel implements ChatPipeline.ChatModel {
     static final Duration SELECTION_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration RETRY_DELAY = Duration.ofMillis(200);
+    private static final Set<String> OPENAI_GENERATION = Set.of(
+            "temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "stop");
 
     public record Selection(ChatPipeline.ModelAnswer response, int attempts) {}
 
@@ -21,7 +24,7 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
         private final int attempts;
 
         Unavailable(int status, int attempts) {
-            super(status == 0 ? "本地模型连接超时或断开" : "本地聊天模型 HTTP " + status);
+            super(status == 0 ? "聊天模型连接超时或断开" : "聊天模型 HTTP " + status);
             this.attempts = attempts;
         }
 
@@ -49,31 +52,46 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
     private final URI endpoint;
     private final String model;
     private final int contextLength;
+    private final boolean openAi;
+    private final String apiKey;
 
     public LocalChatModel(URI base, String model, int contextLength) {
-        this.endpoint = URI.create(base.toString().replaceAll("/+$", "") + "/api/chat");
+        this(base, model, contextLength, false, "");
+    }
+
+    public static LocalChatModel openAi(URI base, String apiKey, String model, int contextLength) {
+        String host = Objects.toString(base.getHost(), "");
+        boolean loopback = "http".equals(base.getScheme())
+                && Set.of("localhost", "127.0.0.1", "::1", "[::1]").contains(host);
+        if ((!loopback && !"https".equals(base.getScheme())) || host.isEmpty()
+                || base.getUserInfo() != null || base.getRawQuery() != null || base.getRawFragment() != null)
+            throw new IllegalArgumentException("EVIDENCE_RAG_CHAT_URL 需要有效的 HTTPS 基础地址");
+        if (apiKey.isBlank()) throw new IllegalArgumentException("EVIDENCE_RAG_CHAT_API_KEY is required");
+        if (model.isBlank()) throw new IllegalArgumentException("EVIDENCE_RAG_CHAT_MODEL is required");
+        return new LocalChatModel(base, model, contextLength, true, apiKey.strip());
+    }
+
+    private LocalChatModel(URI base, String model, int contextLength, boolean openAi, String apiKey) {
+        String path = openAi ? "/chat/completions" : "/api/chat";
+        this.endpoint = URI.create(base.toString().replaceAll("/+$", "") + path);
         this.model = model;
         this.contextLength = contextLength;
+        this.openAi = openAi;
+        this.apiKey = apiKey;
     }
 
     @Override
     public ChatPipeline.ModelAnswer complete(
             List<ContextBuilder.Message> messages, Map<String, Object> generation) throws Exception {
-        Map<String, Object> options = new LinkedHashMap<>();
-        options.put("num_ctx", contextLength);
-        for (var entry : generation.entrySet()) {
-            String key =
-                    switch (entry.getKey()) {
-                        case "max_tokens" -> "num_predict";
-                        default -> entry.getKey();
-                    };
-            options.put(key, entry.getValue());
-        }
-        Map<String, Object> body =
-                Map.of("model", model, "messages", messages, "stream", false, "options", options);
-        var response = send(json.writeValueAsString(body), Duration.ofMinutes(5));
+        return complete(messages, generation, null, Duration.ofMinutes(5));
+    }
+
+    ChatPipeline.ModelAnswer complete(
+            List<ContextBuilder.Message> messages, Map<String, Object> generation,
+            Map<String, Object> schema, Duration timeout) throws Exception {
+        var response = send(payload(messages, generation, schema), timeout);
         if (response.statusCode() != 200)
-            throw new IllegalStateException("本地聊天模型 HTTP " + response.statusCode());
+            throw new IllegalStateException("聊天模型 HTTP " + response.statusCode());
         return decode(response.body());
     }
 
@@ -85,10 +103,7 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
 
     Selection selectEvidence(List<ContextBuilder.Message> messages, Map<String, Object> schema,
                              Map<String, Object> generation, long deadline) throws IOException, InterruptedException {
-        Map<String, Object> options = new LinkedHashMap<>(generation);
-        options.put("num_ctx", contextLength);
-        String payload = json.writeValueAsString(Map.of("model", model, "messages", messages, "stream", false,
-                "think", false, "format", schema, "options", options));
+        String payload = payload(messages, generation, schema);
         int status = 0;
         int attempts = 0;
         while (attempts < 2) {
@@ -109,7 +124,7 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
                 try {
                     return new Selection(decode(response.body()), attempts);
                 } catch (IOException | IllegalStateException invalid) {
-                    throw new InvalidSelection("本地模型返回无效响应", attempts);
+                    throw new InvalidSelection("聊天模型返回无效响应", attempts);
                 }
             }
             boolean retryable = status == 0 || status == 408 || status == 429 || status >= 500;
@@ -119,24 +134,58 @@ public final class LocalChatModel implements ChatPipeline.ChatModel {
         throw new Unavailable(status, attempts);
     }
 
+    private String payload(List<ContextBuilder.Message> messages, Map<String, Object> generation,
+                           Map<String, Object> schema) throws IOException {
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("model", model, "messages", messages, "stream", false));
+        if (openAi) {
+            generation.forEach((key, value) -> {
+                String parameter = key.equals("num_predict") ? "max_tokens" : key;
+                if (OPENAI_GENERATION.contains(parameter)) body.put(parameter, value);
+            });
+            if (schema != null) {
+                body.put("response_format", Map.of("type", "json_schema",
+                        "json_schema", Map.of("name", "evidence_selection", "strict", true, "schema", schema)));
+            }
+        } else {
+            Map<String, Object> options = new LinkedHashMap<>();
+            if (schema == null) {
+                options.put("num_ctx", contextLength);
+                generation.forEach((key, value) -> options.put(key.equals("max_tokens") ? "num_predict" : key, value));
+            } else {
+                options.putAll(generation);
+                options.put("num_ctx", contextLength);
+                body.put("think", false);
+                body.put("format", schema);
+            }
+            body.put("options", options);
+        }
+        return json.writeValueAsString(body);
+    }
+
     private HttpResponse<String> send(String payload, Duration timeout) throws IOException, InterruptedException {
         var request = HttpRequest.newBuilder(endpoint)
                 .timeout(timeout)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
+                .header("Content-Type", "application/json");
+        if (openAi) request.header("Authorization", "Bearer " + apiKey);
+        return client.send(request.POST(HttpRequest.BodyPublishers.ofString(payload)).build(),
+                HttpResponse.BodyHandlers.ofString());
     }
 
     private ChatPipeline.ModelAnswer decode(String payload) throws IOException {
         var result = json.readTree(payload);
-        if (result == null || !result.isObject()) throw new IllegalStateException("本地模型返回无效响应");
-        if (result.has("error")) throw new IllegalStateException("本地模型请求失败");
+        if (result == null || !result.isObject()) throw new IllegalStateException("聊天模型返回无效响应");
+        if (result.hasNonNull("error")) throw new IllegalStateException("聊天模型请求失败");
+        var message = openAi ? result.path("choices").path(0).path("message") : result.path("message");
+        String answer = message.path("content").asText("");
+        String reasoning = message.path(openAi ? "reasoning_content" : "thinking").asText("");
+        if (answer.isBlank() && reasoning.isBlank()) throw new IllegalStateException("聊天模型返回空回答");
+        if (openAi) {
+            var usage = result.path("usage");
+            return new ChatPipeline.ModelAnswer(answer, reasoning,
+                    usage.isObject() ? json.convertValue(usage, new TypeReference<>() {}) : Map.of());
+        }
         int prompt = result.path("prompt_eval_count").asInt(),
                 completion = result.path("eval_count").asInt();
-        String answer = result.path("message").path("content").asText();
-        String reasoning = result.path("message").path("thinking").asText();
-        if (answer.isBlank() && reasoning.isBlank()) throw new IllegalStateException("本地模型返回空回答");
         Map<String, Object> usage =
                 prompt == 0 && completion == 0
                         ? Map.of()

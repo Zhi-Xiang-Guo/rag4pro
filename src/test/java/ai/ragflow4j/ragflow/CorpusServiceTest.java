@@ -69,8 +69,12 @@ class CorpusServiceTest {
                         stored.clear();
                         response = Map.of("deleted", 1);
                     } else if (path.endsWith("/_search")) {
+                        JsonNode requestedId = JSON.readTree(body).findValue("_id");
                         List<Object> hits = new ArrayList<>();
-                        for (var entry : stored.entrySet())
+                        for (var entry : stored.entrySet()) {
+                            if (requestedId != null && requestedId.isTextual()) {
+                                if (!entry.getKey().equals(requestedId.asText())) continue;
+                            } else if (Integer.valueOf(0).equals(entry.getValue().get("available_int"))) continue;
                             hits.add(
                                     Map.of(
                                             "_id",
@@ -81,6 +85,7 @@ class CorpusServiceTest {
                                             0.9,
                                             "_source",
                                             entry.getValue()));
+                        }
                         response = Map.of("hits", Map.of("total", Map.of("value", hits.size()), "hits", hits));
                     } else response = Map.of();
                     byte[] output = JSON.writeValueAsBytes(response);
@@ -109,6 +114,48 @@ class CorpusServiceTest {
     @AfterEach
     void stop() {
         http.stop(0);
+    }
+
+    @Test
+    void expandedEvidenceKeepsMatchingLeavesWhenTheirContextExceedsTheRemainingBudget() throws Exception {
+        String dataset = "kb";
+        String doc = DocumentCatalog.identity(dataset, "a");
+        corpus.indexBatch(Map.of("datasetId", dataset, "documents",
+                List.of(Map.of("docId", "a", "title", "Policy", "text", "Policy rules"))));
+        stored.clear();
+
+        stored.put("match-a", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 1,
+                "content_with_weight", "alpha rule", "mom_id", "parent-a", "section_id", "section-a"));
+        stored.put("match-b", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 1,
+                "content_with_weight", "beta rule", "mom_id", "parent-a", "section_id", "section-a"));
+        stored.put("match-c", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 1,
+                "content_with_weight", "gamma rule", "section_id", "section-b"));
+        stored.put("section-a", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 0,
+                "content_with_weight", " context".repeat(24)));
+        stored.put("parent-a", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 0,
+                "content_with_weight", "alpha rule and beta rule with context"));
+        stored.put("section-b", Map.of("doc_id", doc, "kb_id", dataset, "available_int", 0,
+                "content_with_weight", "gamma rule"));
+
+        var input = new LinkedHashMap<String, Object>(Map.of("datasetId", dataset, "question", "rule",
+                "strategy", "lexical", "contextMode", "section", "topK", 3, "evidenceBudget", 12));
+        var result = corpus.retrieveContext(input);
+        assertEquals(List.of("parent-a", "section-b"), evidenceIds(result));
+        assertTrue((int) result.get("evidenceTokens") <= 12);
+
+        input.put("evidenceBudget", 6);
+        result = corpus.retrieveContext(input);
+        assertEquals(List.of("match-a", "match-b", "section-b"), evidenceIds(result));
+        assertEquals(6, result.get("evidenceTokens"));
+
+        input.put("evidenceBudget", 30);
+        assertEquals(List.of("section-a", "section-b"), evidenceIds(corpus.retrieveContext(input)));
+        stored.remove("section-a");
+        assertEquals(List.of("parent-a", "section-b"), evidenceIds(corpus.retrieveContext(input)));
+    }
+
+    private static List<String> evidenceIds(Map<String, Object> result) {
+        return JSON.valueToTree(result.get("evidence")).findValuesAsText("id");
     }
 
     @Test
