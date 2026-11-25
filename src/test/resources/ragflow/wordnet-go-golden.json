@@ -1,0 +1,1753 @@
+{
+  "better": [
+    {
+      "Name": "better.n.01",
+      "POS": "n",
+      "Offset": 5143558,
+      "Lemmas": [
+        "better"
+      ],
+      "Definition": "something superior in quality or condition or effect",
+      "Examples": [
+        "a change for the better"
+      ]
+    },
+    {
+      "Name": "bettor.n.01",
+      "POS": "n",
+      "Offset": 9851876,
+      "Lemmas": [
+        "bettor",
+        "better",
+        "wagerer",
+        "punter"
+      ],
+      "Definition": "someone who bets",
+      "Examples": null
+    },
+    {
+      "Name": "better.n.03",
+      "POS": "n",
+      "Offset": 9851719,
+      "Lemmas": [
+        "better"
+      ],
+      "Definition": "a superior person having claim to precedence",
+      "Examples": [
+        "the common man has been kept in his place by his betters"
+      ]
+    },
+    {
+      "Name": "better.n.04",
+      "POS": "n",
+      "Offset": 5143690,
+      "Lemmas": [
+        "better"
+      ],
+      "Definition": "the superior one of two alternatives",
+      "Examples": [
+        "chose the better of the two"
+      ]
+    },
+    {
+      "Name": "better.v.01",
+      "POS": "v",
+      "Offset": 1106864,
+      "Lemmas": [
+        "better",
+        "break"
+      ],
+      "Definition": "surpass in excellence",
+      "Examples": [
+        "She bettered her own record",
+        "break a record"
+      ]
+    },
+    {
+      "Name": "better.v.02",
+      "POS": "v",
+      "Offset": 205885,
+      "Lemmas": [
+        "better",
+        "improve",
+        "amend",
+        "ameliorate",
+        "meliorate"
+      ],
+      "Definition": "to make better",
+      "Examples": [
+        "The editor improved the manuscript with his changes"
+      ]
+    },
+    {
+      "Name": "better.v.03",
+      "POS": "v",
+      "Offset": 205046,
+      "Lemmas": [
+        "better",
+        "improve",
+        "ameliorate",
+        "meliorate"
+      ],
+      "Definition": "get better",
+      "Examples": [
+        "The weather improved toward evening"
+      ]
+    },
+    {
+      "Name": "better.a.01",
+      "POS": "a",
+      "Offset": 230335,
+      "Lemmas": [
+        "better"
+      ],
+      "Definition": "(comparative of `good') superior to another (of the same class or set or kind) in excellence or quality or desirability or suitability; more highly skilled than another",
+      "Examples": [
+        "You're a better man than I am, Gunga Din",
+        "a better coat",
+        "a better type of car",
+        "a suit with a better fit",
+        "a better chance of success",
+        "produced a better mousetrap",
+        "she's better in math than in history"
+      ]
+    },
+    {
+      "Name": "better.a.02",
+      "POS": "a",
+      "Offset": 231761,
+      "Lemmas": [
+        "better"
+      ],
+      "Definition": "(comparative of `good') changed for the better in health or fitness",
+      "Examples": [
+        "her health is better now",
+        "I feel better"
+      ]
+    },
+    {
+      "Name": "better.s.03",
+      "POS": "s",
+      "Offset": 67379,
+      "Lemmas": [
+        "better",
+        "best"
+      ],
+      "Definition": "(comparative and superlative of `well') wiser or more advantageous and hence advisable",
+      "Examples": [
+        "it would be better to speak to him",
+        "the White House thought it best not to respond"
+      ]
+    },
+    {
+      "Name": "better.s.04",
+      "POS": "s",
+      "Offset": 1471260,
+      "Lemmas": [
+        "better"
+      ],
+      "Definition": "more than half",
+      "Examples": [
+        "argued for the better part of an hour"
+      ]
+    },
+    {
+      "Name": "good.a.01",
+      "POS": "a",
+      "Offset": 1123148,
+      "Lemmas": [
+        "good"
+      ],
+      "Definition": "having desirable or positive qualities especially those suitable for a thing specified",
+      "Examples": [
+        "good news from the hospital",
+        "a good report card",
+        "when she was good she was very very good",
+        "a good knife is one good for cutting",
+        "this stump will make a good picnic table",
+        "a good check",
+        "a good joke",
+        "a good exterior paint",
+        "a good secretary",
+        "a good dress for the office"
+      ]
+    },
+    {
+      "Name": "full.s.06",
+      "POS": "s",
+      "Offset": 106020,
+      "Lemmas": [
+        "full",
+        "good"
+      ],
+      "Definition": "having the normally expected amount",
+      "Examples": [
+        "gives full measure",
+        "gives good measure",
+        "a good mile from here"
+      ]
+    },
+    {
+      "Name": "good.a.03",
+      "POS": "a",
+      "Offset": 1129977,
+      "Lemmas": [
+        "good"
+      ],
+      "Definition": "morally admirable",
+      "Examples": null
+    },
+    {
+      "Name": "estimable.s.02",
+      "POS": "s",
+      "Offset": 1983162,
+      "Lemmas": [
+        "estimable",
+        "good",
+        "honorable",
+        "respectable"
+      ],
+      "Definition": "deserving of esteem and respect",
+      "Examples": [
+        "all respectable companies give guarantees",
+        "ruined the family's good name"
+      ]
+    },
+    {
+      "Name": "beneficial.s.01",
+      "POS": "s",
+      "Offset": 64787,
+      "Lemmas": [
+        "beneficial",
+        "good"
+      ],
+      "Definition": "promoting or enhancing well-being",
+      "Examples": [
+        "an arms limitation agreement beneficial to all countries",
+        "the beneficial effects of a temperate climate",
+        "the experience was good for her"
+      ]
+    },
+    {
+      "Name": "good.s.06",
+      "POS": "s",
+      "Offset": 1586752,
+      "Lemmas": [
+        "good"
+      ],
+      "Definition": "agreeable or pleasing",
+      "Examples": [
+        "we all had a good time",
+        "good manners"
+      ]
+    },
+    {
+      "Name": "good.s.07",
+      "POS": "s",
+      "Offset": 2036934,
+      "Lemmas": [
+        "good",
+        "just",
+        "upright"
+      ],
+      "Definition": "of moral excellence",
+      "Examples": [
+        "a genuinely good person",
+        "a just cause",
+        "an upright and respectable man"
+      ]
+    },
+    {
+      "Name": "adept.s.01",
+      "POS": "s",
+      "Offset": 2226162,
+      "Lemmas": [
+        "adept",
+        "expert",
+        "good",
+        "practiced",
+        "proficient",
+        "skillful",
+        "skilful"
+      ],
+      "Definition": "having or showing knowledge and skill and aptitude",
+      "Examples": [
+        "adept in handicrafts",
+        "an adept juggler",
+        "an expert job",
+        "a good mechanic",
+        "a practiced marksman",
+        "a proficient engineer",
+        "a lesser-known but no less skillful composer",
+        "the effect was achieved by skillful retouching"
+      ]
+    },
+    {
+      "Name": "good.s.09",
+      "POS": "s",
+      "Offset": 523364,
+      "Lemmas": [
+        "good"
+      ],
+      "Definition": "thorough",
+      "Examples": [
+        "had a good workout",
+        "gave the house a good cleaning"
+      ]
+    },
+    {
+      "Name": "dear.s.02",
+      "POS": "s",
+      "Offset": 452883,
+      "Lemmas": [
+        "dear",
+        "good",
+        "near"
+      ],
+      "Definition": "with or in a close or intimate relationship",
+      "Examples": [
+        "a good friend",
+        "my sisters and brothers are near and dear"
+      ]
+    },
+    {
+      "Name": "dependable.s.04",
+      "POS": "s",
+      "Offset": 2273643,
+      "Lemmas": [
+        "dependable",
+        "good",
+        "safe",
+        "secure"
+      ],
+      "Definition": "financially sound",
+      "Examples": [
+        "a good investment",
+        "a secure investment"
+      ]
+    },
+    {
+      "Name": "good.s.12",
+      "POS": "s",
+      "Offset": 1661289,
+      "Lemmas": [
+        "good",
+        "right",
+        "ripe"
+      ],
+      "Definition": "most suitable or right for a particular purpose",
+      "Examples": [
+        "a good time to plant tomatoes",
+        "the right time to act",
+        "the time is ripe for great sociological changes"
+      ]
+    },
+    {
+      "Name": "good.s.13",
+      "POS": "s",
+      "Offset": 1048762,
+      "Lemmas": [
+        "good",
+        "well"
+      ],
+      "Definition": "resulting favorably",
+      "Examples": [
+        "it's a good thing that I wasn't there",
+        "it is good that you stayed",
+        "it is well that no one saw you",
+        "all's well that ends well"
+      ]
+    },
+    {
+      "Name": "effective.s.04",
+      "POS": "s",
+      "Offset": 832784,
+      "Lemmas": [
+        "effective",
+        "good",
+        "in_effect",
+        "in_force"
+      ],
+      "Definition": "exerting force or influence",
+      "Examples": [
+        "the law is effective immediately",
+        "a warranty good for two years",
+        "the law is already in effect (or in force)"
+      ]
+    },
+    {
+      "Name": "good.s.15",
+      "POS": "s",
+      "Offset": 1808329,
+      "Lemmas": [
+        "good"
+      ],
+      "Definition": "capable of pleasing",
+      "Examples": [
+        "good looks"
+      ]
+    },
+    {
+      "Name": "good.s.16",
+      "POS": "s",
+      "Offset": 1333477,
+      "Lemmas": [
+        "good",
+        "serious"
+      ],
+      "Definition": "appealing to the mind",
+      "Examples": [
+        "good music",
+        "a serious book"
+      ]
+    },
+    {
+      "Name": "good.s.17",
+      "POS": "s",
+      "Offset": 1171213,
+      "Lemmas": [
+        "good",
+        "sound"
+      ],
+      "Definition": "in excellent physical condition",
+      "Examples": [
+        "good teeth",
+        "I still have one good leg",
+        "a sound mind in a sound body"
+      ]
+    },
+    {
+      "Name": "good.s.18",
+      "POS": "s",
+      "Offset": 1166413,
+      "Lemmas": [
+        "good",
+        "salutary"
+      ],
+      "Definition": "tending to promote physical well-being; beneficial to health",
+      "Examples": [
+        "beneficial effects of a balanced diet",
+        "a good night's sleep",
+        "the salutary influence of pure air"
+      ]
+    },
+    {
+      "Name": "good.s.19",
+      "POS": "s",
+      "Offset": 1116026,
+      "Lemmas": [
+        "good",
+        "honest"
+      ],
+      "Definition": "not forged",
+      "Examples": [
+        "a good dollar bill"
+      ]
+    },
+    {
+      "Name": "good.s.20",
+      "POS": "s",
+      "Offset": 1068306,
+      "Lemmas": [
+        "good",
+        "undecomposed",
+        "unspoiled",
+        "unspoilt"
+      ],
+      "Definition": "not left to spoil",
+      "Examples": [
+        "the meat is still good"
+      ]
+    },
+    {
+      "Name": "good.s.21",
+      "POS": "s",
+      "Offset": 775611,
+      "Lemmas": [
+        "good"
+      ],
+      "Definition": "generally admired",
+      "Examples": [
+        "good taste"
+      ]
+    },
+    {
+      "Name": "well.a.01",
+      "POS": "a",
+      "Offset": 2540578,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "in good health especially after having suffered illness or injury",
+      "Examples": [
+        "appears to be entirely well",
+        "the wound is nearly well",
+        "a well man",
+        "I think I'm well; at least I feel well"
+      ]
+    },
+    {
+      "Name": "well.s.03",
+      "POS": "s",
+      "Offset": 67638,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "wise or advantageous and hence advisable",
+      "Examples": [
+        "it would be well to start early"
+      ]
+    },
+    {
+      "Name": "better.r.01",
+      "POS": "r",
+      "Offset": 59607,
+      "Lemmas": [
+        "better"
+      ],
+      "Definition": "comparative of `well'; in a better or more excellent manner or more advantageously or attractively or to a greater degree etc.",
+      "Examples": [
+        "She had never sung better",
+        "a deed better left undone",
+        "better suited to the job"
+      ]
+    },
+    {
+      "Name": "better.r.02",
+      "POS": "r",
+      "Offset": 509846,
+      "Lemmas": [
+        "better",
+        "best"
+      ],
+      "Definition": "from a position of superiority or authority",
+      "Examples": [
+        "father knows best",
+        "I know better."
+      ]
+    },
+    {
+      "Name": "well.r.01",
+      "POS": "r",
+      "Offset": 11093,
+      "Lemmas": [
+        "well",
+        "good"
+      ],
+      "Definition": "(often used as a combining form) in a good or proper or satisfactory manner or to a high standard (`good' is a nonstandard dialectal variant for `well')",
+      "Examples": [
+        "the children behaved well",
+        "a task well done",
+        "the party went well",
+        "he slept well",
+        "a well-argued thesis",
+        "a well-seasoned dish",
+        "a well-planned party",
+        "the baby can walk pretty good"
+      ]
+    },
+    {
+      "Name": "well.r.02",
+      "POS": "r",
+      "Offset": 12779,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "thoroughly or completely; fully; often used as a combining form",
+      "Examples": [
+        "The problem is well understood",
+        "she was well informed",
+        "shake well before using",
+        "in order to avoid food poisoning be sure the meat is well cooked",
+        "well-done beef",
+        "well-satisfied customers",
+        "well-educated"
+      ]
+    },
+    {
+      "Name": "well.r.03",
+      "POS": "r",
+      "Offset": 12531,
+      "Lemmas": [
+        "well",
+        "easily"
+      ],
+      "Definition": "indicating high probability; in all likelihood",
+      "Examples": [
+        "I might well do it",
+        "a mistake that could easily have ended in disaster",
+        "you may well need your umbrella",
+        "he could equally well be trying to deceive us"
+      ]
+    },
+    {
+      "Name": "well.r.04",
+      "POS": "r",
+      "Offset": 15135,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "(used for emphasis or as an intensifier) entirely or fully",
+      "Examples": [
+        "a book well worth reading",
+        "was well aware of the difficulties ahead",
+        "suspected only too well what might be going on"
+      ]
+    },
+    {
+      "Name": "well.r.05",
+      "POS": "r",
+      "Offset": 13429,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "to a suitable or appropriate extent or degree",
+      "Examples": [
+        "the project was well underway",
+        "the fetus has well developed organs",
+        "his father was well pleased with his grades"
+      ]
+    },
+    {
+      "Name": "well.r.06",
+      "POS": "r",
+      "Offset": 13092,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "favorably; with approval",
+      "Examples": [
+        "their neighbors spoke well of them",
+        "he thought well of the book"
+      ]
+    },
+    {
+      "Name": "well.r.07",
+      "POS": "r",
+      "Offset": 14285,
+      "Lemmas": [
+        "well",
+        "considerably",
+        "substantially"
+      ],
+      "Definition": "to a great extent or degree",
+      "Examples": [
+        "I'm afraid the film was well over budget",
+        "painting the room white made it seem considerably (or substantially) larger",
+        "the house has fallen considerably in value",
+        "the price went up substantially"
+      ]
+    },
+    {
+      "Name": "well.r.08",
+      "POS": "r",
+      "Offset": 15007,
+      "Lemmas": [
+        "well",
+        "intimately"
+      ],
+      "Definition": "with great or especially intimate knowledge",
+      "Examples": [
+        "we knew them well"
+      ]
+    },
+    {
+      "Name": "well.r.09",
+      "POS": "r",
+      "Offset": 14882,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "with prudence or propriety",
+      "Examples": [
+        "You would do well to say nothing more",
+        "could not well refuse"
+      ]
+    },
+    {
+      "Name": "well.r.10",
+      "POS": "r",
+      "Offset": 14616,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "with skill or in a pleasing manner",
+      "Examples": [
+        "she dances well",
+        "he writes well"
+      ]
+    },
+    {
+      "Name": "well.r.11",
+      "POS": "r",
+      "Offset": 13793,
+      "Lemmas": [
+        "well",
+        "advantageously"
+      ],
+      "Definition": "in a manner affording benefit or advantage",
+      "Examples": [
+        "she married well",
+        "The children were settled advantageously in Seattle"
+      ]
+    },
+    {
+      "Name": "well.r.12",
+      "POS": "r",
+      "Offset": 13626,
+      "Lemmas": [
+        "well",
+        "comfortably"
+      ],
+      "Definition": "in financial comfort",
+      "Examples": [
+        "They live well",
+        "she has been able to live comfortably since her husband died"
+      ]
+    },
+    {
+      "Name": "well.r.13",
+      "POS": "r",
+      "Offset": 12129,
+      "Lemmas": [
+        "well"
+      ],
+      "Definition": "without unusual distress or resentment; with good humor",
+      "Examples": [
+        "took the joke well",
+        "took the tragic news well"
+      ]
+    }
+  ],
+  "car": [
+    {
+      "Name": "car.n.01",
+      "POS": "n",
+      "Offset": 2958343,
+      "Lemmas": [
+        "car",
+        "auto",
+        "automobile",
+        "machine",
+        "motorcar"
+      ],
+      "Definition": "a motor vehicle with four wheels; usually propelled by an internal combustion engine",
+      "Examples": [
+        "he needs a car to get to work"
+      ]
+    },
+    {
+      "Name": "car.n.02",
+      "POS": "n",
+      "Offset": 2959942,
+      "Lemmas": [
+        "car",
+        "railcar",
+        "railway_car",
+        "railroad_car"
+      ],
+      "Definition": "a wheeled vehicle adapted to the rails of railroad",
+      "Examples": [
+        "three cars had jumped the rails"
+      ]
+    },
+    {
+      "Name": "car.n.03",
+      "POS": "n",
+      "Offset": 2960501,
+      "Lemmas": [
+        "car",
+        "gondola"
+      ],
+      "Definition": "the compartment that is suspended from an airship and that carries personnel and the cargo and the power plant",
+      "Examples": null
+    },
+    {
+      "Name": "car.n.04",
+      "POS": "n",
+      "Offset": 2960352,
+      "Lemmas": [
+        "car",
+        "elevator_car"
+      ],
+      "Definition": "where passengers ride up and down",
+      "Examples": [
+        "the car was on the top floor"
+      ]
+    },
+    {
+      "Name": "cable_car.n.01",
+      "POS": "n",
+      "Offset": 2934451,
+      "Lemmas": [
+        "cable_car",
+        "car"
+      ],
+      "Definition": "a conveyance for passengers or freight on a cable railway",
+      "Examples": [
+        "they took a cable car to the top of the mountain"
+      ]
+    }
+  ],
+  "children": [
+    {
+      "Name": "child.n.01",
+      "POS": "n",
+      "Offset": 9917593,
+      "Lemmas": [
+        "child",
+        "kid",
+        "youngster",
+        "minor",
+        "shaver",
+        "nipper",
+        "small_fry",
+        "tiddler",
+        "tike",
+        "tyke",
+        "fry",
+        "nestling"
+      ],
+      "Definition": "a young person of either sex",
+      "Examples": [
+        "she writes books for children",
+        "they're just kids",
+        "`tiddler' is a British term for youngster"
+      ]
+    },
+    {
+      "Name": "child.n.02",
+      "POS": "n",
+      "Offset": 9918248,
+      "Lemmas": [
+        "child",
+        "kid"
+      ],
+      "Definition": "a human offspring (son or daughter) of any age",
+      "Examples": [
+        "they had three children",
+        "they were able to send their kids to college"
+      ]
+    },
+    {
+      "Name": "child.n.03",
+      "POS": "n",
+      "Offset": 9918554,
+      "Lemmas": [
+        "child",
+        "baby"
+      ],
+      "Definition": "an immature childish person",
+      "Examples": [
+        "he remained a child in practical matters as long as he lived",
+        "stop being a baby!"
+      ]
+    },
+    {
+      "Name": "child.n.04",
+      "POS": "n",
+      "Offset": 9918762,
+      "Lemmas": [
+        "child"
+      ],
+      "Definition": "a member of a clan or tribe",
+      "Examples": [
+        "the children of Israel"
+      ]
+    }
+  ],
+  "dog": [
+    {
+      "Name": "dog.n.01",
+      "POS": "n",
+      "Offset": 2084071,
+      "Lemmas": [
+        "dog",
+        "domestic_dog",
+        "Canis_familiaris"
+      ],
+      "Definition": "a member of the genus Canis (probably descended from the common wolf) that has been domesticated by man since prehistoric times; occurs in many breeds",
+      "Examples": [
+        "the dog barked all night"
+      ]
+    },
+    {
+      "Name": "frump.n.01",
+      "POS": "n",
+      "Offset": 10114209,
+      "Lemmas": [
+        "frump",
+        "dog"
+      ],
+      "Definition": "a dull unattractive unpleasant girl or woman",
+      "Examples": [
+        "she got a reputation as a frump",
+        "she's a real dog"
+      ]
+    },
+    {
+      "Name": "dog.n.03",
+      "POS": "n",
+      "Offset": 10023039,
+      "Lemmas": [
+        "dog"
+      ],
+      "Definition": "informal term for a man",
+      "Examples": [
+        "you lucky dog"
+      ]
+    },
+    {
+      "Name": "cad.n.01",
+      "POS": "n",
+      "Offset": 9886220,
+      "Lemmas": [
+        "cad",
+        "bounder",
+        "blackguard",
+        "dog",
+        "hound",
+        "heel"
+      ],
+      "Definition": "someone who is morally reprehensible",
+      "Examples": [
+        "you dirty dog"
+      ]
+    },
+    {
+      "Name": "frank.n.02",
+      "POS": "n",
+      "Offset": 7676602,
+      "Lemmas": [
+        "frank",
+        "frankfurter",
+        "hotdog",
+        "hot_dog",
+        "dog",
+        "wiener",
+        "wienerwurst",
+        "weenie"
+      ],
+      "Definition": "a smooth-textured sausage of minced beef or pork usually smoked; often served on a bread roll",
+      "Examples": null
+    },
+    {
+      "Name": "pawl.n.01",
+      "POS": "n",
+      "Offset": 3901548,
+      "Lemmas": [
+        "pawl",
+        "detent",
+        "click",
+        "dog"
+      ],
+      "Definition": "a hinged catch that fits into a notch of a ratchet to move a wheel forward or prevent it from moving backward",
+      "Examples": null
+    },
+    {
+      "Name": "andiron.n.01",
+      "POS": "n",
+      "Offset": 2710044,
+      "Lemmas": [
+        "andiron",
+        "firedog",
+        "dog",
+        "dog-iron"
+      ],
+      "Definition": "metal supports for logs in a fireplace",
+      "Examples": [
+        "the andirons were too hot to touch"
+      ]
+    },
+    {
+      "Name": "chase.v.01",
+      "POS": "v",
+      "Offset": 2001858,
+      "Lemmas": [
+        "chase",
+        "chase_after",
+        "trail",
+        "tail",
+        "tag",
+        "give_chase",
+        "dog",
+        "go_after",
+        "track"
+      ],
+      "Definition": "go after with the intent to catch",
+      "Examples": [
+        "The policeman chased the mugger down the alley",
+        "the dog chased the rabbit"
+      ]
+    }
+  ],
+  "mice": [
+    {
+      "Name": "mouse.n.01",
+      "POS": "n",
+      "Offset": 2330245,
+      "Lemmas": [
+        "mouse"
+      ],
+      "Definition": "any of numerous small rodents typically resembling diminutive rats having pointed snouts and small ears on elongated bodies with slender usually hairless tails",
+      "Examples": null
+    },
+    {
+      "Name": "shiner.n.01",
+      "POS": "n",
+      "Offset": 14289387,
+      "Lemmas": [
+        "shiner",
+        "black_eye",
+        "mouse"
+      ],
+      "Definition": "a swollen bruise caused by a blow to the eye",
+      "Examples": null
+    },
+    {
+      "Name": "mouse.n.03",
+      "POS": "n",
+      "Offset": 10335563,
+      "Lemmas": [
+        "mouse"
+      ],
+      "Definition": "person who is quiet or timid",
+      "Examples": null
+    },
+    {
+      "Name": "mouse.n.04",
+      "POS": "n",
+      "Offset": 3793489,
+      "Lemmas": [
+        "mouse",
+        "computer_mouse"
+      ],
+      "Definition": "a hand-operated electronic device that controls the coordinates of a cursor on your computer screen as you move it around on a pad; on the bottom of the device is a ball that rolls on the surface of the pad",
+      "Examples": [
+        "a mouse takes much more room than a trackball"
+      ]
+    }
+  ],
+  "running": [
+    {
+      "Name": "run.n.05",
+      "POS": "n",
+      "Offset": 558883,
+      "Lemmas": [
+        "run",
+        "running",
+        "running_play",
+        "running_game"
+      ],
+      "Definition": "(American football) a play in which a player attempts to carry the ball through or past the opposing team",
+      "Examples": [
+        "the defensive line braced to stop the run",
+        "the coach put great emphasis on running"
+      ]
+    },
+    {
+      "Name": "run.n.07",
+      "POS": "n",
+      "Offset": 293916,
+      "Lemmas": [
+        "run",
+        "running"
+      ],
+      "Definition": "the act of running; traveling on foot at a fast pace",
+      "Examples": [
+        "he broke into a run",
+        "his daily run keeps him fit"
+      ]
+    },
+    {
+      "Name": "running.n.03",
+      "POS": "n",
+      "Offset": 14009481,
+      "Lemmas": [
+        "running"
+      ],
+      "Definition": "the state of being in operation",
+      "Examples": [
+        "the engine is running smoothly"
+      ]
+    },
+    {
+      "Name": "running.n.04",
+      "POS": "n",
+      "Offset": 1136985,
+      "Lemmas": [
+        "running"
+      ],
+      "Definition": "the act of administering or being in charge of something",
+      "Examples": [
+        "he has responsibility for the running of two companies at the same time"
+      ]
+    },
+    {
+      "Name": "track.n.11",
+      "POS": "n",
+      "Offset": 440039,
+      "Lemmas": [
+        "track",
+        "running"
+      ],
+      "Definition": "the act of participating in an athletic competition involving running on a track",
+      "Examples": null
+    },
+    {
+      "Name": "run.v.01",
+      "POS": "v",
+      "Offset": 1926311,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "move fast by using one's feet, with one foot off the ground at any given time",
+      "Examples": [
+        "Don't run--you'll be out of breath",
+        "The children ran to the store"
+      ]
+    },
+    {
+      "Name": "scat.v.01",
+      "POS": "v",
+      "Offset": 2075049,
+      "Lemmas": [
+        "scat",
+        "run",
+        "scarper",
+        "turn_tail",
+        "lam",
+        "run_away",
+        "hightail_it",
+        "bunk",
+        "head_for_the_hills",
+        "take_to_the_woods",
+        "escape",
+        "fly_the_coop",
+        "break_away"
+      ],
+      "Definition": "flee; take to one's heels; cut and run",
+      "Examples": [
+        "If you see this man, run!",
+        "The burglars escaped before the police showed up"
+      ]
+    },
+    {
+      "Name": "run.v.03",
+      "POS": "v",
+      "Offset": 2685951,
+      "Lemmas": [
+        "run",
+        "go",
+        "pass",
+        "lead",
+        "extend"
+      ],
+      "Definition": "stretch out over a distance, space, time, or scope; run or extend between two points or beyond a certain point",
+      "Examples": [
+        "Service runs all the way to Cranbury",
+        "His knowledge doesn't go very far",
+        "My memory extends back to my fourth year of life",
+        "The facts extend beyond a consideration of her personal assets"
+      ]
+    },
+    {
+      "Name": "operate.v.01",
+      "POS": "v",
+      "Offset": 2443849,
+      "Lemmas": [
+        "operate",
+        "run"
+      ],
+      "Definition": "direct or control; projects, businesses, etc.",
+      "Examples": [
+        "She is running a relief operation in the Sudan"
+      ]
+    },
+    {
+      "Name": "run.v.05",
+      "POS": "v",
+      "Offset": 2721284,
+      "Lemmas": [
+        "run",
+        "go"
+      ],
+      "Definition": "have a particular form",
+      "Examples": [
+        "the story or argument runs as follows",
+        "as the saying goes..."
+      ]
+    },
+    {
+      "Name": "run.v.06",
+      "POS": "v",
+      "Offset": 2066939,
+      "Lemmas": [
+        "run",
+        "flow",
+        "feed",
+        "course"
+      ],
+      "Definition": "move along, of liquids",
+      "Examples": [
+        "Water flowed into the cave",
+        "the Missouri feeds into the Mississippi"
+      ]
+    },
+    {
+      "Name": "function.v.01",
+      "POS": "v",
+      "Offset": 1525666,
+      "Lemmas": [
+        "function",
+        "work",
+        "operate",
+        "go",
+        "run"
+      ],
+      "Definition": "perform as expected when applied",
+      "Examples": [
+        "The washing machine won't go unless it's plugged in",
+        "Does this old car still run well?",
+        "This old radio doesn't work anymore"
+      ]
+    },
+    {
+      "Name": "range.v.01",
+      "POS": "v",
+      "Offset": 2727039,
+      "Lemmas": [
+        "range",
+        "run"
+      ],
+      "Definition": "change or be different within limits",
+      "Examples": [
+        "Estimates for the losses in the earthquake range as high as $2 billion",
+        "Interest rates run from 5 to 10 percent",
+        "The instruments ranged from tuba to cymbals",
+        "My students range from very bright to dull"
+      ]
+    },
+    {
+      "Name": "campaign.v.01",
+      "POS": "v",
+      "Offset": 1094086,
+      "Lemmas": [
+        "campaign",
+        "run"
+      ],
+      "Definition": "run, stand, or compete for an office or a position",
+      "Examples": [
+        "Who's running for treasurer this year?"
+      ]
+    },
+    {
+      "Name": "play.v.18",
+      "POS": "v",
+      "Offset": 1717169,
+      "Lemmas": [
+        "play",
+        "run"
+      ],
+      "Definition": "cause to emit recorded audio or video",
+      "Examples": [
+        "They ran the tapes over and over again",
+        "I'll play you my favorite record",
+        "He never tires of playing that video"
+      ]
+    },
+    {
+      "Name": "run.v.11",
+      "POS": "v",
+      "Offset": 2099829,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "move about freely and without restraint, or act as if running around in an uncontrolled way",
+      "Examples": [
+        "who are these people running around in the building?",
+        "She runs around telling everyone of her troubles",
+        "let the dogs run free"
+      ]
+    },
+    {
+      "Name": "tend.v.01",
+      "POS": "v",
+      "Offset": 2719399,
+      "Lemmas": [
+        "tend",
+        "be_given",
+        "lean",
+        "incline",
+        "run"
+      ],
+      "Definition": "have a tendency or disposition to do or be something; be inclined",
+      "Examples": [
+        "She tends to be nervous before her lectures",
+        "These dresses run small",
+        "He inclined to corpulence"
+      ]
+    },
+    {
+      "Name": "run.v.13",
+      "POS": "v",
+      "Offset": 1526290,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "be operating, running or functioning",
+      "Examples": [
+        "The car is still running--turn it off!"
+      ]
+    },
+    {
+      "Name": "run.v.14",
+      "POS": "v",
+      "Offset": 549063,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "change from one state to another",
+      "Examples": [
+        "run amok",
+        "run rogue",
+        "run riot"
+      ]
+    },
+    {
+      "Name": "run.v.15",
+      "POS": "v",
+      "Offset": 517529,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "cause to perform",
+      "Examples": [
+        "run a subject",
+        "run a process"
+      ]
+    },
+    {
+      "Name": "run.v.16",
+      "POS": "v",
+      "Offset": 2720904,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "be affected by; be subjected to",
+      "Examples": [
+        "run a temperature",
+        "run a risk"
+      ]
+    },
+    {
+      "Name": "prevail.v.03",
+      "POS": "v",
+      "Offset": 2647497,
+      "Lemmas": [
+        "prevail",
+        "persist",
+        "die_hard",
+        "run",
+        "endure"
+      ],
+      "Definition": "continue to exist",
+      "Examples": [
+        "These stories die hard",
+        "The legend of Elvis endures"
+      ]
+    },
+    {
+      "Name": "run.v.18",
+      "POS": "v",
+      "Offset": 2612234,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "occur persistently",
+      "Examples": [
+        "Musical talent runs in the family"
+      ]
+    },
+    {
+      "Name": "run.v.19",
+      "POS": "v",
+      "Offset": 2563327,
+      "Lemmas": [
+        "run",
+        "execute"
+      ],
+      "Definition": "carry out a process or program, as on a computer or a machine",
+      "Examples": [
+        "Run the dishwasher",
+        "run a new program on the Mac",
+        "the computer executed the instruction"
+      ]
+    },
+    {
+      "Name": "carry.v.15",
+      "POS": "v",
+      "Offset": 1746359,
+      "Lemmas": [
+        "carry",
+        "run"
+      ],
+      "Definition": "include as the content; broadcast or publicize",
+      "Examples": [
+        "We ran the ad three times",
+        "This paper carries a restaurant review",
+        "All major networks carried the press conference"
+      ]
+    },
+    {
+      "Name": "run.v.21",
+      "POS": "v",
+      "Offset": 1641545,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "carry out",
+      "Examples": [
+        "run an errand"
+      ]
+    },
+    {
+      "Name": "guide.v.05",
+      "POS": "v",
+      "Offset": 1212230,
+      "Lemmas": [
+        "guide",
+        "run",
+        "draw",
+        "pass"
+      ],
+      "Definition": "pass over, across, or through",
+      "Examples": [
+        "He ran his eyes over her body",
+        "She ran her fingers along the carved figurine",
+        "He drew her hair through his fingers"
+      ]
+    },
+    {
+      "Name": "run.v.23",
+      "POS": "v",
+      "Offset": 2686625,
+      "Lemmas": [
+        "run",
+        "lead"
+      ],
+      "Definition": "cause something to pass or lead somewhere",
+      "Examples": [
+        "Run the wire behind the cabinet"
+      ]
+    },
+    {
+      "Name": "run.v.24",
+      "POS": "v",
+      "Offset": 2525312,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "make without a miss",
+      "Examples": null
+    },
+    {
+      "Name": "run.v.25",
+      "POS": "v",
+      "Offset": 2242256,
+      "Lemmas": [
+        "run",
+        "black_market"
+      ],
+      "Definition": "deal in illegally, such as arms or liquor",
+      "Examples": null
+    },
+    {
+      "Name": "run.v.26",
+      "POS": "v",
+      "Offset": 2092309,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "cause an animal to move fast",
+      "Examples": [
+        "run the dogs"
+      ]
+    },
+    {
+      "Name": "run.v.27",
+      "POS": "v",
+      "Offset": 2060792,
+      "Lemmas": [
+        "run",
+        "bleed"
+      ],
+      "Definition": "be diffused",
+      "Examples": [
+        "These dyes and colors are guaranteed not to run"
+      ]
+    },
+    {
+      "Name": "run.v.28",
+      "POS": "v",
+      "Offset": 1927903,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "sail before the wind",
+      "Examples": null
+    },
+    {
+      "Name": "run.v.29",
+      "POS": "v",
+      "Offset": 1914947,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "cover by running; run a certain distance",
+      "Examples": [
+        "She ran 10 miles that day"
+      ]
+    },
+    {
+      "Name": "run.v.30",
+      "POS": "v",
+      "Offset": 2648110,
+      "Lemmas": [
+        "run",
+        "run_for"
+      ],
+      "Definition": "extend or continue for a certain period of time",
+      "Examples": [
+        "The film runs 5 hours"
+      ]
+    },
+    {
+      "Name": "run.v.31",
+      "POS": "v",
+      "Offset": 2421921,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "set animals loose to graze",
+      "Examples": null
+    },
+    {
+      "Name": "run.v.32",
+      "POS": "v",
+      "Offset": 1927747,
+      "Lemmas": [
+        "run",
+        "consort"
+      ],
+      "Definition": "keep company",
+      "Examples": [
+        "the heifers run with the bulls to produce offspring"
+      ]
+    },
+    {
+      "Name": "run.v.33",
+      "POS": "v",
+      "Offset": 1927447,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "run with the ball; in such sports as football",
+      "Examples": null
+    },
+    {
+      "Name": "run.v.34",
+      "POS": "v",
+      "Offset": 1926984,
+      "Lemmas": [
+        "run"
+      ],
+      "Definition": "travel rapidly, by any (unspecified) means",
+      "Examples": [
+        "Run to the store!",
+        "She always runs to Italy, because she has a lover there"
+      ]
+    },
+    {
+      "Name": "ply.v.03",
+      "POS": "v",
+      "Offset": 1864038,
+      "Lemmas": [
+        "ply",
+        "run"
+      ],
+      "Definition": "travel a route regularly",
+      "Examples": [
+        "Ships ply the waters near the coast"
+      ]
+    },
+    {
+      "Name": "hunt.v.01",
+      "POS": "v",
+      "Offset": 1143838,
+      "Lemmas": [
+        "hunt",
+        "run",
+        "hunt_down",
+        "track_down"
+      ],
+      "Definition": "pursue for food or sport (as of wild animals)",
+      "Examples": [
+        "Goering often hunted wild boars in Poland",
+        "The dogs are running deer",
+        "The Duke hunted in these woods"
+      ]
+    },
+    {
+      "Name": "race.v.02",
+      "POS": "v",
+      "Offset": 1086103,
+      "Lemmas": [
+        "race",
+        "run"
+      ],
+      "Definition": "compete in a race",
+      "Examples": [
+        "he is running the Marathon this year",
+        "let's race and see who gets there first"
+      ]
+    },
+    {
+      "Name": "move.v.13",
+      "POS": "v",
+      "Offset": 539110,
+      "Lemmas": [
+        "move",
+        "go",
+        "run"
+      ],
+      "Definition": "progress by being changed",
+      "Examples": [
+        "The speech has to go through several more drafts",
+        "run through your presentation before the meeting"
+      ]
+    },
+    {
+      "Name": "melt.v.01",
+      "POS": "v",
+      "Offset": 444629,
+      "Lemmas": [
+        "melt",
+        "run",
+        "melt_down"
+      ],
+      "Definition": "reduce or cause to be reduced from a solid to a liquid state, usually by heating",
+      "Examples": [
+        "melt butter",
+        "melt down gold",
+        "The wax melted in the sun"
+      ]
+    },
+    {
+      "Name": "ladder.v.01",
+      "POS": "v",
+      "Offset": 334803,
+      "Lemmas": [
+        "ladder",
+        "run"
+      ],
+      "Definition": "come unraveled or undone as if by snagging",
+      "Examples": [
+        "Her nylons were running"
+      ]
+    },
+    {
+      "Name": "run.v.41",
+      "POS": "v",
+      "Offset": 332672,
+      "Lemmas": [
+        "run",
+        "unravel"
+      ],
+      "Definition": "become undone",
+      "Examples": [
+        "the sweater unraveled"
+      ]
+    },
+    {
+      "Name": "running.a.01",
+      "POS": "a",
+      "Offset": 1240591,
+      "Lemmas": [
+        "running"
+      ],
+      "Definition": "(of fluids) moving or issuing in a stream",
+      "Examples": [
+        "as mountain stream with freely running water",
+        "hovels without running water"
+      ]
+    },
+    {
+      "Name": "running.s.02",
+      "POS": "s",
+      "Offset": 592754,
+      "Lemmas": [
+        "running"
+      ],
+      "Definition": "continually repeated over a period of time",
+      "Examples": [
+        "a running joke among us"
+      ]
+    },
+    {
+      "Name": "running.a.03",
+      "POS": "a",
+      "Offset": 1241757,
+      "Lemmas": [
+        "running"
+      ],
+      "Definition": "of advancing the ball by running",
+      "Examples": [
+        "the team's running plays worked better than its pass plays"
+      ]
+    },
+    {
+      "Name": "running.a.04",
+      "POS": "a",
+      "Offset": 1240413,
+      "Lemmas": [
+        "running"
+      ],
+      "Definition": "executed or initiated by running",
+      "Examples": [
+        "running plays worked better than pass plays",
+        "took a running jump",
+        "a running start"
+      ]
+    },
+    {
+      "Name": "linear.s.05",
+      "POS": "s",
+      "Offset": 1445438,
+      "Lemmas": [
+        "linear",
+        "running"
+      ],
+      "Definition": "measured lengthwise",
+      "Examples": [
+        "cost of lumber per running foot"
+      ]
+    },
+    {
+      "Name": "running.s.06",
+      "POS": "s",
+      "Offset": 1091728,
+      "Lemmas": [
+        "running",
+        "operative",
+        "functional",
+        "working"
+      ],
+      "Definition": "(of e.g. a machine) performing or capable of performing",
+      "Examples": [
+        "in running (or working) order",
+        "a functional set of brakes"
+      ]
+    }
+  ]
+}

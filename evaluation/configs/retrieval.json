@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "scifact-full-v1",
+  "datasetId": "eval-scifact-full-v1",
+  "description": "Full BEIR SciFact corpus. Official train deterministic 60-query dev; official test untouched. Document-level metrics after chunk deduplication.",
+  "candidateBudget": "64 total: RRF 32 lexical + 32 dense; other strategies 64. ANN exploration remains knnTopK=256/numCandidates=1024.",
+  "primaryMetric": "ndcg@10",
+  "request": {"topK": 64, "candidateK": 64, "knnTopK": 256, "knnNumCandidates": 1024, "threshold": 0, "language": "English", "aggs": false},
+  "variants": {
+    "standard": {"strategy": "standard"},
+    "lexical": {"strategy": "lexical"},
+    "dense": {"strategy": "dense"},
+    "rrf": {"strategy": "rrf"}
+  },
+  "baseline": "standard",
+  "selectionCandidates": ["dense", "rrf"],
+  "seed": 20261124,
+  "gates": {"maxErrorRate": 0.0, "minRecall@10": 0.5, "minPrimaryDelta": -0.01}
+}

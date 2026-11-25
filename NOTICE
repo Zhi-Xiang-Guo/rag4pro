@@ -1,0 +1,10 @@
+Evidence RAG for Java — independent Java implementation and evaluation of a text RAG pipeline.
+
+Architecture and reading guide reference RAGFlow by InfiniFlow:
+https://github.com/infiniflow/ragflow
+RAGFlow is licensed under Apache License 2.0. This project is not an official
+Java port and does not claim output equivalence or affiliation.
+
+Runtime libraries include Apache Lucene (Apache Software Foundation) and
+Jackson (FasterXML). Their license and notice resources are included in the
+bundled dependency archive; consult upstream projects for full attributions.

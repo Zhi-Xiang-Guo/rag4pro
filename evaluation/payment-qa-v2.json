@@ -1,0 +1,565 @@
+{
+  "labelStatus": "Dev reused from the first run; new test uses separately authored runbook questions.",
+  "queries": [
+    {
+      "id": "dev-01",
+      "split": "dev",
+      "version": "v2",
+      "category": "事实",
+      "question": "支付回调已经成功写入系统并通过签名校验，应当用什么 HTTP 状态确认？",
+      "evidence": [
+        {
+          "docId": "notify-v2",
+          "text": "验签通过且事件已持久化，商户应返回 HTTP 200 确认收到支付回调。"
+        }
+      ]
+    },
+    {
+      "id": "dev-02",
+      "split": "dev",
+      "version": "v2",
+      "category": "事实",
+      "question": "退款接口回了 QUEUED，此时退款是什么状态？",
+      "evidence": [
+        {
+          "docId": "refund-v2",
+          "text": "退款接口返回 QUEUED 表示已受理且退款处理中。"
+        }
+      ]
+    },
+    {
+      "id": "dev-03",
+      "split": "dev",
+      "version": "v2",
+      "category": "事实",
+      "question": "查单接口反馈 PAID 表示什么？",
+      "evidence": [
+        {
+          "docId": "query-v2",
+          "text": "主动查单返回 PAID 表示支付成功。"
+        }
+      ]
+    },
+    {
+      "id": "dev-04",
+      "split": "dev",
+      "version": "v2",
+      "category": "事实",
+      "question": "支付请求超时，排障时要把哪几项记下来？",
+      "evidence": [
+        {
+          "docId": "timeout-v2",
+          "text": "支付请求超时排障需记录请求时间、商户订单号和 request_id。"
+        }
+      ]
+    },
+    {
+      "id": "dev-05",
+      "split": "dev",
+      "version": "v2",
+      "category": "事实",
+      "question": "同一笔支付重试时可以更换币种吗？",
+      "evidence": [
+        {
+          "docId": "idempotency-v2",
+          "text": "已有支付单的币种由首笔请求确定，后续重试不能修改币种。"
+        }
+      ]
+    },
+    {
+      "id": "dev-06",
+      "split": "dev",
+      "version": "v2",
+      "category": "事实",
+      "question": "要查一批已提交的结算详情，哪个字段是批次标识？",
+      "evidence": [
+        {
+          "docId": "settle-v2",
+          "text": "查询批次结算详情使用 settlement_batch_id。"
+        }
+      ]
+    },
+    {
+      "id": "dev-07",
+      "split": "dev",
+      "version": "v1",
+      "category": "版本",
+      "question": "旧版支付回调通知用哪个字段定位交易？",
+      "evidence": [
+        {
+          "docId": "notify-v1",
+          "text": "旧版支付通知以 trade_no 识别对应交易。"
+        }
+      ]
+    },
+    {
+      "id": "dev-08",
+      "split": "dev",
+      "version": "v1",
+      "category": "版本",
+      "question": "旧版对账文件用的是什么字符集？",
+      "evidence": [
+        {
+          "docId": "reconcile-v1",
+          "text": "旧版对账文件使用 GB18030 编码。"
+        }
+      ]
+    },
+    {
+      "id": "dev-09",
+      "split": "dev",
+      "version": "v2",
+      "category": "无答案",
+      "question": "每笔原路退款要收多少手续费？",
+      "evidence": []
+    },
+    {
+      "id": "dev-10",
+      "split": "dev",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "当前版支付通知的请求体最多支持多少 KB？",
+      "evidence": []
+    },
+    {
+      "id": "dev-11",
+      "split": "dev",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "查单返回 PAID 后，给买家发确认邮件的模板是什么？",
+      "evidence": []
+    },
+    {
+      "id": "dev-12",
+      "split": "dev",
+      "version": "v1",
+      "category": "版本缺失",
+      "question": "旧版支付回调通过哪个 HTTP 状态码确认？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-01",
+      "split": "test",
+      "version": "v2",
+      "category": "跨条目",
+      "question": "回调确定收到了，什么条件下返回成功状态？重复回调又靠哪个标识识别？",
+      "evidence": [
+        {
+          "docId": "notify-v2",
+          "text": "验签通过且事件已持久化，商户应返回 HTTP 200 确认收到支付回调。"
+        },
+        {
+          "docId": "notify-v2",
+          "text": "重复支付回调以 notify_id 去重。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-02",
+      "split": "test",
+      "version": "v2",
+      "category": "事实",
+      "question": "支付回调补推最多允许重发几回？",
+      "evidence": [
+        {
+          "docId": "notify-v2",
+          "text": "同一笔支付回调最多补推 4 次。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-03",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "退款状态还没出来，进度查询用的业务 ID 是什么？",
+      "evidence": [
+        {
+          "docId": "refund-v2",
+          "text": "同一笔退款在处理中时，应以 refund_id 查询进度。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-04",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "支付服务刚给了 PENDING，主动查询同一订单之前至少要等多少秒？",
+      "evidence": [
+        {
+          "docId": "query-v2",
+          "text": "支付接口返回 PENDING 后，商户应等待至少 15 秒再发起首次主动查单。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-05",
+      "split": "test",
+      "version": "v2",
+      "category": "跨条目",
+      "question": "保持原订单号和金额再次提交会返回什么？如果把金额改了，又会收到什么响应？",
+      "evidence": [
+        {
+          "docId": "idempotency-v2",
+          "text": "同一商户使用相同的商户订单号和相同的支付金额重试时，平台返回原支付单。"
+        },
+        {
+          "docId": "idempotency-v2",
+          "text": "同一商户订单号的重试金额与首笔请求不一致时，平台返回 AMOUNT_MISMATCH。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-06",
+      "split": "test",
+      "version": "v2",
+      "category": "事实",
+      "question": "同单重试能否换支付币种？币种由哪条请求确定？",
+      "evidence": [
+        {
+          "docId": "idempotency-v2",
+          "text": "已有支付单的币种由首笔请求确定，后续重试不能修改币种。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-07",
+      "split": "test",
+      "version": "v2",
+      "category": "跨条目",
+      "question": "哪种结算状态证明款已到账？查询结算批次的详情需要哪个标识？",
+      "evidence": [
+        {
+          "docId": "settle-v2",
+          "text": "结算批次状态 CREDITED 表示结算通道确认款项已入账。"
+        },
+        {
+          "docId": "settle-v2",
+          "text": "查询批次结算详情使用 settlement_batch_id。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-08",
+      "split": "test",
+      "version": "v2",
+      "category": "事实",
+      "question": "导出的交易对账文件找不到，应该先核对哪两项？",
+      "evidence": [
+        {
+          "docId": "reconcile-v2",
+          "text": "对账文件缺失时，先核对交易日和文件生成状态。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-09",
+      "split": "test",
+      "version": "v2",
+      "category": "事实",
+      "question": "已提交支付故障单，新找到的补充日志应该放到哪里？",
+      "evidence": [
+        {
+          "docId": "support-v2",
+          "text": "同一笔支付的补充材料附在原工单下。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-10",
+      "split": "test",
+      "version": "v2",
+      "category": "事实",
+      "question": "登记支付故障工单需要提供哪些定位字段？",
+      "evidence": [
+        {
+          "docId": "support-v2",
+          "text": "提交支付故障工单需提供商户号、商户订单号、发生时间和 request_id。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-11",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "网络超时后查单已经确认未找到，原支付要等几分钟再送？",
+      "evidence": [
+        {
+          "docId": "timeout-v2",
+          "text": "查询结果为 NOT_FOUND 时，需等待 2 分钟再用原商户订单号重试支付。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-12",
+      "split": "test",
+      "version": "v2",
+      "category": "跨条目",
+      "question": "回调超时后第一次补推等多少秒，补推次数最多是多少？",
+      "evidence": [
+        {
+          "docId": "notify-v2",
+          "text": "支付回调超时后，首次补推间隔为 30 秒。"
+        },
+        {
+          "docId": "notify-v2",
+          "text": "同一笔支付回调最多补推 4 次。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-13",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "第一轮查了订单以后，后续两次轮询至少相隔多久？",
+      "evidence": [
+        {
+          "docId": "query-v2",
+          "text": "单笔支付订单主动查单的间隔不得小于 20 秒。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-14",
+      "split": "test",
+      "version": "v2",
+      "category": "事实",
+      "question": "今天支付成功了，结算批次按手册排到哪一天？",
+      "evidence": [
+        {
+          "docId": "settle-v2",
+          "text": "批次结算日为支付成功后的下一个工作日。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-15",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "旧版最多对同一条支付回调再推送几次？",
+      "evidence": [
+        {
+          "docId": "notify-v1",
+          "text": "同一笔支付回调最多补推 3 次。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-16",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "处理好 v1 回调后，响应正文要写哪个确认值？",
+      "evidence": [
+        {
+          "docId": "notify-v1",
+          "text": "商户收到支付回调并处理成功后，确认正文必须是 SUCCESS。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-17",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "支付请求超时后，按旧版手册等多久再去主动查询订单？",
+      "evidence": [
+        {
+          "docId": "timeout-v1",
+          "text": "支付请求超时后，等待 90 秒再主动查单。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-18",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "v1 超时主动查单仍无记录，再次支付的订单号沿用哪个？",
+      "evidence": [
+        {
+          "docId": "timeout-v1",
+          "text": "查单仍找不到支付订单时，使用原商户订单号再次提交。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-19",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "旧版对账交付时间规定为北京时间上午几点之前？",
+      "evidence": [
+        {
+          "docId": "reconcile-v1",
+          "text": "上一交易日的对账文件在北京时间 11:00 前生成。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-20",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "旧版下载历史对账文件能回溯几个自然日？",
+      "evidence": [
+        {
+          "docId": "reconcile-v1",
+          "text": "旧版对账文件可下载的时间范围为最近 7 个自然日。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-21",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "系统采用哪个字段作为旧版对账文件的文件名？",
+      "evidence": [
+        {
+          "docId": "reconcile-v1",
+          "text": "旧版对账文件以交易日期命名。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-22",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "旧退款接口反馈 ACCEPTED 表示退款走到哪一步？",
+      "evidence": [
+        {
+          "docId": "refund-v1",
+          "text": "退款接口返回 ACCEPTED 表示已受理且等待处理。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-23",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "发给旧系统的退款申请可使用什么币种？",
+      "evidence": [
+        {
+          "docId": "refund-v1",
+          "text": "旧版支付系统的退款请求只接收 CNY 币种。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-24",
+      "split": "test",
+      "version": "v1",
+      "category": "版本",
+      "question": "旧退款要追查进度，需要传哪些单号？",
+      "evidence": [
+        {
+          "docId": "refund-v1",
+          "text": "查询旧版退款进度时，使用原支付单号和商户退款流水号。"
+        }
+      ]
+    },
+    {
+      "id": "test-v2-25",
+      "split": "test",
+      "version": "v1",
+      "category": "近似干扰",
+      "question": "旧版支付回调的确认正文由哪种字符编码传输？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-26",
+      "split": "test",
+      "version": "v1",
+      "category": "近似干扰",
+      "question": "旧系统确认退款后，可以取到退款拒绝原因的哪个字段？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-27",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "PENDING 的订单最多保留多久，之后平台会自动标成失败？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-28",
+      "split": "test",
+      "version": "v2",
+      "category": "无答案",
+      "question": "柜台扫码支付对单笔订单的最小金额有什么要求？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-29",
+      "split": "test",
+      "version": "v1",
+      "category": "近似干扰",
+      "question": "旧系统的原路退款超过六个工作日，商户如何申请赔偿？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-30",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "支付故障工单附件的大小上限是几兆字节？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-31",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "支付订单金额不匹配时，响应的 HTTP 状态码是多少？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-32",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "每个结算批次最多能容纳多少笔成功交易？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-33",
+      "split": "test",
+      "version": "v2",
+      "category": "近似干扰",
+      "question": "对账文件在 09:30 前生成，历史文件采用哪种压缩格式？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-34",
+      "split": "test",
+      "version": "v2",
+      "category": "无答案",
+      "question": "重新发送支付结果通知时，签名算法采用哪种摘要？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-35",
+      "split": "test",
+      "version": "v1",
+      "category": "版本缺失",
+      "question": "旧版支付重试时既改订单号又改金额，会报哪个金额校验错误？",
+      "evidence": []
+    },
+    {
+      "id": "test-v2-36",
+      "split": "test",
+      "version": "v1",
+      "category": "版本缺失",
+      "question": "v1 收到退款 ACCEPTED 后，退款进度能通过 refund_id 查吗？",
+      "evidence": []
+    }
+  ]
+}

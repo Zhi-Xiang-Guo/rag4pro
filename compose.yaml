@@ -1,0 +1,57 @@
+name: evidence-rag-java
+services:
+  elasticsearch:
+    image: elasticsearch:8.11.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: '-Xms512m -Xmx512m'
+    ports:
+      - '127.0.0.1:${EVIDENCE_RAG_ES_PORT:-19200}:9200'
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'curl -fsS http://localhost:9200/_cluster/health?wait_for_status=yellow >/dev/null' ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    mem_limit: 2g
+    restart: unless-stopped
+  app:
+    build: .
+    image: evidence-rag-java:local
+    ports:
+      - '127.0.0.1:${EVIDENCE_RAG_HTTP_PORT:-18080}:18080'
+    environment:
+      EVIDENCE_RAG_BASE_URL: ${EVIDENCE_RAG_BASE_URL:-http://host.docker.internal:11434/v1}
+      EVIDENCE_RAG_MODEL: ${EVIDENCE_RAG_MODEL:-bge-m3}
+      EVIDENCE_RAG_API_KEY: ${EVIDENCE_RAG_API_KEY:-}
+      EVIDENCE_RAG_EMBEDDING_MAX_TOKENS: ${EVIDENCE_RAG_EMBEDDING_MAX_TOKENS:-}
+      EVIDENCE_RAG_CHAT_URL: ${EVIDENCE_RAG_CHAT_URL:-http://host.docker.internal:11434}
+      EVIDENCE_RAG_CHAT_MODEL: ${EVIDENCE_RAG_CHAT_MODEL:-qwen3:4b}
+      EVIDENCE_RAG_EXTRACTIVE_MODEL: ${EVIDENCE_RAG_EXTRACTIVE_MODEL:-}
+      EVIDENCE_RAG_CHAT_CONTEXT: ${EVIDENCE_RAG_CHAT_CONTEXT:-8192}
+      EVIDENCE_RAG_ES_URL: http://elasticsearch:9200
+      EVIDENCE_RAG_HTTP_TOKEN: ${EVIDENCE_RAG_HTTP_TOKEN:-}
+      EVIDENCE_RAG_MAX_INFLIGHT: ${EVIDENCE_RAG_MAX_INFLIGHT:-8}
+      EVIDENCE_RAG_QUERY_CACHE_ENTRIES: ${EVIDENCE_RAG_QUERY_CACHE_ENTRIES:-0}
+      EVIDENCE_RAG_RERANK_URL: ${EVIDENCE_RAG_RERANK_URL:-}
+      EVIDENCE_RAG_RERANK_MODEL: ${EVIDENCE_RAG_RERANK_MODEL:-}
+      EVIDENCE_RAG_RERANK_API_KEY: ${EVIDENCE_RAG_RERANK_API_KEY:-}
+      TZ: Asia/Shanghai
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - documents:/app/data
+    healthcheck:
+      test: [ 'CMD', 'java', '-cp', '/app/evidence-rag-java.jar', 'ai.ragflow4j.Healthcheck' ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    mem_limit: 2g
+    restart: unless-stopped
+volumes:
+  documents:
+  elastic-data:

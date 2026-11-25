@@ -1,0 +1,19 @@
+name: Build and verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python evaluation tests
+        run: python3 -m unittest discover -s evaluation -p 'test_*.py'
+      - name: Java tests and container runtime check
+        run: docker compose build app

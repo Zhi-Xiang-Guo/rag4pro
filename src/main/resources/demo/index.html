@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Evidence RAG · 支付故障手册</title>
+    <link rel="stylesheet" href="/demo.css">
+    <script src="/demo.js" defer></script>
+</head>
+<body>
+<header class="masthead">
+    <div class="shell masthead-inner">
+        <a class="brand" href="/">Evidence RAG <span>for Java</span></a>
+        <a class="lab-link" href="/lab">检索实验台 <span aria-hidden="true">↗</span></a>
+    </div>
+</header>
+<main class="shell">
+    <div class="introduction">
+        <div>
+            <h1>支付故障手册</h1>
+            <p>从示例手册查找处置步骤，并核对回答对应的原文。</p>
+        </div>
+        <div id="catalog-status" class="catalog-status" role="status">正在检查示例索引…</div>
+    </div>
+
+    <div class="workspace">
+        <section class="card question-card" aria-labelledby="question-heading">
+            <h2 id="question-heading">提问</h2>
+            <div id="setup" hidden>
+                <button class="primary" id="seed" type="button">建立示例索引</button>
+                <p class="hint">首次建立索引时会调用本地嵌入模型。</p>
+            </div>
+
+            <form id="question-form">
+                <label for="version">手册版本</label>
+                <select id="version" name="version">
+                    <option value="v2">v2 · 当前版</option>
+                    <option value="v1">v1 · 旧版</option>
+                </select>
+                <label for="question">问题</label>
+                <textarea id="question" name="question" rows="4" maxlength="500"
+                          placeholder="支付通知超时后，平台多久第一次补发？" required></textarea>
+                <button id="ask" type="submit" class="primary" disabled>查找依据</button>
+            </form>
+
+            <div class="examples-area">
+                <h3>试试这些问题</h3>
+                <div id="examples" class="examples"></div>
+            </div>
+
+            <details class="connection" id="connection">
+                <summary>连接设置</summary>
+                <label for="token">服务访问令牌（可选）</label>
+                <input id="token" type="password" autocomplete="off">
+                <button class="secondary" id="connect" type="button">检查连接</button>
+            </details>
+        </section>
+
+        <section class="card results-card" aria-labelledby="results-heading" aria-busy="false" id="results">
+            <div class="section-heading">
+                <h2 id="results-heading">回答与依据</h2>
+                <span id="answer-status" class="status"></span>
+            </div>
+            <div class="answer" id="answer" aria-live="polite">提问后可在这里查看结果。</div>
+            <div id="sources-region" class="sources-region" hidden>
+                <h3>引用文档</h3>
+                <div id="sources" class="sources"></div>
+                <section id="source" class="source" tabindex="-1" hidden>
+                    <div class="section-heading">
+                        <h3 id="source-title"></h3>
+                        <button type="button" class="secondary" id="close-source">关闭原文</button>
+                    </div>
+                    <div id="source-meta" class="hint"></div>
+                    <div id="source-text" class="source-text"></div>
+                </section>
+            </div>
+
+            <details id="trace" class="trace" hidden>
+                <summary>检索与证据选择</summary>
+                <p id="trace-summary" class="hint"></p>
+                <ol id="candidates"></ol>
+                <details>
+                    <summary>查看本次请求的诊断数据</summary>
+                    <pre id="trace-json"></pre>
+                </details>
+            </details>
+            <p id="error" class="error" role="alert" hidden></p>
+        </section>
+    </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "split": "dev",
+  "profile": {
+    "fixtureSha256": "db63faf634556956d54df61b7c142f59150d2dd74e6776e7584b4123fefeb551",
+    "labelsSha256": "f033960ac650e405a3cfbc05e1b902d5eb88290cbbb41529daeabd09bd5453d3",
+    "sourceSha256": "47c506deed6a6c7ad4daebf81fa0683e45b2579b9838e488a695e0139d670363",
+    "checkerSha256": "617569a85f6f6fa729f6ac43235c21b8d6f424eaa4169961fc8aa422fcf78a66",
+    "embeddingIdentitySha256": "8803c2400da0679ff643edf7850e7f65c0d67324ead51c60ce2cd143a652a048",
+    "evidenceModel": "qwen3:4b",
+    "context": 8192
+  },
+  "answerable": 8,
+  "unanswerable": 4,
+  "goldEvidenceRetrieved": 8,
+  "goldEvidenceCited": 8,
+  "onlyGoldEvidenceCited": 8,
+  "correctRefusals": 4,
+  "citationAndRefusalIntegrity": 12,
+  "scopePass": 12,
+  "errors": 0,
+  "latencyP95Ms": 7075.7,
+  "passed": true
+}

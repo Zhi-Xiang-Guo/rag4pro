@@ -1,0 +1,17 @@
+# Run with: docker compose -f compose.yaml -f evaluation/compose.eval.yaml up -d
+# Own index and catalog; does not overwrite the demo corpus.
+name: evidence-rag-eval
+services:
+  elasticsearch:
+    ports: !reset []
+  app:
+    ports: !override
+      - '127.0.0.1:18081:18080'
+    environment:
+      EVIDENCE_RAG_ES_INDEX: evidence_rag_eval_v1
+      EVIDENCE_RAG_QUERY_CACHE_ENTRIES: '1024'
+      EVIDENCE_RAG_MAX_INFLIGHT: '8'
+    volumes:
+      - evaluation-data:/app/data
+volumes:
+  evaluation-data:

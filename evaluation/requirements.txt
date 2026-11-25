@@ -1,0 +1,2 @@
+# Only the prepare command needs this; run/report/gate use Python 3.11+ stdlib.
+pyarrow==21.0.0

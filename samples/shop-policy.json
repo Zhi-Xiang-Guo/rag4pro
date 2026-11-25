@@ -1,0 +1,10 @@
+{
+  "datasetId": "demo-standard",
+  "docId": "shop-policy",
+  "title": "商城售后与配送规则.txt",
+  "language": "Chinese",
+  "text": "退款政策\n消费者在签收商品后七天内可以申请无理由退款。退款在审核通过后的三个工作日内原路返回支付账户。\n配送规则\n普通订单在付款后四十八小时内发货。偏远地区预计五到七天送达。\n发票规则\n订单完成后可申请电子发票。发票将在三个工作日内发送到预留邮箱。",
+  "chunkTokenSize": 64,
+  "overlapPercent": 0,
+  "filenameEmbeddingWeight": 0.1
+}

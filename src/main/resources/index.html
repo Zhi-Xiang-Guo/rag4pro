@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Evidence RAG · 检索实验台</title>
+<style>
+    :root {
+        font-family: system-ui, sans-serif;
+        color: #182b38;
+        background: #f3f6f8
+    }
+
+    body {
+        max-width: 1300px;
+        margin: 32px auto;
+        padding: 0 22px
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 30px
+    }
+
+    h2 {
+        font-size: 21px;
+        margin-top: 0
+    }
+
+    header {
+        display: flex;
+        justify-content: space-between;
+        gap: 25px;
+        align-items: center;
+        margin-bottom: 22px
+    }
+
+    .muted, small {
+        color: #637887;
+        font-size: 13px;
+        line-height: 1.8
+    }
+
+    .flow {
+        padding: 16px 20px;
+        background: #183e48;
+        color: white;
+        border-radius: 10px;
+        margin: 20px 0;
+        line-height: 1.8
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns:1fr 1fr;
+        gap: 20px
+    }
+
+    section {
+        background: white;
+        border: 1px solid #dce3e8;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 20px
+    }
+
+    label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 14px 0 6px
+    }
+
+    input, select, textarea {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #c7d3dc;
+        border-radius: 6px;
+        font: inherit;
+        background: white
+    }
+
+    textarea {
+        font-size: 14px;
+        line-height: 1.7;
+        resize: vertical
+    }
+
+    button {
+        background: #176b68;
+        color: white;
+        border: 0;
+        border-radius: 6px;
+        padding: 11px 17px;
+        margin: 14px 8px 14px 0;
+        cursor: pointer;
+        font: inherit
+    }
+
+    button:disabled {
+        opacity: .5;
+        cursor: wait
+    }
+
+    .row {
+        display: flex;
+        gap: 12px
+    }
+
+    .row > * {
+        flex: 1
+    }
+
+    pre {
+        background: #f2f5f7;
+        white-space: pre-wrap;
+        word-break: break-word;
+        padding: 14px;
+        font-size: 12px;
+        border-radius: 6px;
+        max-height: 450px;
+        overflow: auto
+    }
+
+    .hit {
+        padding: 14px 0;
+        border-top: 1px solid #e0e7eb
+    }
+
+    .scores {
+        font-size: 12px;
+        color: #176b68;
+        margin: 8px 0
+    }
+
+    .chunk, #answer {
+        white-space: pre-wrap;
+        line-height: 1.8;
+        font-size: 15px
+    }
+
+    .error {
+        color: #a32424
+    }
+
+    #status {
+        margin: 15px 0;
+        min-height: 24px;
+        font-size: 14px
+    }
+
+    summary {
+        cursor: pointer;
+        color: #176b68;
+        margin: 10px 0
+    }
+
+    .check {
+        display: flex;
+        gap: 8px;
+        align-items: center
+    }
+
+    .check input {
+        width: auto
+    }
+
+    @media (max-width: 850px) {
+        .grid {
+            grid-template-columns:1fr
+        }
+
+        header {
+            align-items: flex-start
+        }
+    }
+</style>
+<header>
+    <div><h1>Evidence RAG · 检索实验台</h1>
+        <p class="muted">标准 RAGFlow 链路 · Java 源码学习</p></div>
+    <small id="health">正在检查服务…</small></header>
+<div class="flow">文档解析 → GeneralChunker → RAGAnalyzer → 标题 / 正文向量 → Elasticsearch<br>查询改写 → 加权查询与 kNN
+    → 二阶段评分 → 父子块回填 → 上下文预算 → 本地模型 → 引用
+</div>
+<div id="status" role="status"></div>
+<div class="grid">
+    <div>
+        <section><h2>建索引</h2>
+            <label for="dataset">数据集 ID</label><input id="dataset" value="demo-standard">
+            <div class="row">
+                <div><label for="doc">文档 ID</label><input id="doc" value="shop-policy"></div>
+                <div><label for="title">文件名 / 标题</label><input id="title" value="商城售后与配送规则.txt"></div>
+            </div>
+            <label for="file">读取 UTF-8 文本或 Markdown 文件</label><input id="file" type="file"
+                                                                            accept=".txt,.md,.markdown,text/plain,text/markdown">
+            <label for="format">解析格式</label><select id="format">
+                <option value="txt">纯文本</option>
+                <option value="md">Markdown</option>
+            </select>
+            <label for="text">文档正文</label><textarea id="text" rows="10">退款政策
+消费者在签收商品后七天内可以申请无理由退款。商品须保持完好，退款在审核通过后的三个工作日内原路返回支付账户。生鲜食品不支持无理由退货。
+
+配送规则
+普通订单在付款后四十八小时内发货。偏远地区预计五到七天送达。客户可以在订单详情页查看物流进度。
+
+发票规则
+订单完成后可申请电子发票。请提供公司名称与纳税人识别号。发票将在三个工作日内发送到预留邮箱。</textarea>
+            <div class="row">
+                <div><label for="size">chunk_token_size（cl100k tokens）</label><input id="size" type="number" value="512"
+                                                                                     min="0"></div>
+                <div><label for="overlap">overlapped_percent（%）</label><input id="overlap" type="number" value="0"
+                                                                              min="0" max="100"></div>
+            </div>
+            <div class="row">
+                <div><label for="titleWeight">filename_embd_weight</label><input id="titleWeight" type="number"
+                                                                                 value="0.1" min="0" max="1"
+                                                                                 step="0.05"></div>
+                <div><label for="children">子块分隔符（可选）</label><input id="children" placeholder="例如 。"></div>
+            </div>
+            <button id="index">建立索引</button>
+            <details>
+                <summary>原版分块与索引字段</summary>
+                <pre id="indexed">建索引后查看 title_tks、content_ltks、content_sm_ltks、mom_id 和向量维度。</pre>
+            </details>
+            <small>GeneralChunker 保留完整单元，因此块可能超过目标 token 数。相同数据集和文档 ID 重建会替换原文档。</small>
+        </section>
+        <section><h2>文档</h2>
+            <button id="refresh">刷新当前数据集</button>
+            <pre id="docs">[]</pre>
+        </section>
+    </div>
+    <div>
+        <section><h2>检索与问答</h2><label for="question">问题</label><input id="question"
+                                                                             value="申请退款审核通过后，多少天内到账？">
+            <label for="mode">检索模式</label><select id="mode">
+                <option value="hybrid">混合检索</option>
+                <option value="bm25">词法检索</option>
+                <option value="vector">向量检索</option>
+            </select>
+            <div class="row">
+                <div><label for="topk">top_n（输出块数）</label><input id="topk" type="number" value="6" min="1"></div>
+                <div><label for="candidates">rerank_candidates_count</label><input id="candidates" type="number"
+                                                                                   value="64" min="1"></div>
+            </div>
+            <div class="row">
+                <div><label for="weight">vector_similarity_weight</label><input id="weight" type="number" value="0.3"
+                                                                                min="0" max="1" step="0.1"></div>
+                <div><label for="threshold">similarity_threshold</label><input id="threshold" type="number" value="0.1"
+                                                                               min="0" max="1" step="0.05"></div>
+            </div>
+            <label for="scope">限定文档 ID（可选）</label><input id="scope" placeholder="留空搜索当前数据集">
+            <label for="answerMode">回答方式</label><select id="answerMode">
+                <option value="standard">原版生成</option>
+                <option value="extractive">证据摘录</option>
+            </select>
+            <label class="check"><input id="quote" type="checkbox" checked>附引用</label>
+            <label class="check"><input id="history" type="checkbox" checked>保留本页对话</label>
+            <button id="search">查看检索结果</button>
+            <button id="ask">生成回答与引用</button>
+            <div id="answer" aria-live="polite"></div>
+            <div id="references"></div>
+            <div id="results"></div>
+            <details>
+                <summary>实际检索请求与二阶段评分</summary>
+                <pre id="trace">查询 DSL、候选重试、term_similarity、vector_similarity 和最终 similarity 会在这里显示。</pre>
+            </details>
+            <details>
+                <summary>回答的上下文与模型用量</summary>
+                <pre id="prompt">生成回答后显示 prompt、实际查询与 usage。</pre>
+            </details>
+        </section>
+    </div>
+</div>
+<script>
+    const $ = id => document.getElementById(id), num = id => Number($(id).value);
+    let history = [];
+
+    async function api(path, options = {}) {
+        const response = await fetch(path, options);
+        const data = await response.json();
+        if (!response.ok) throw Error(data.error || `HTTP ${response.status}`);
+        return data;
+    }
+
+    const post = (path, data) => api(path, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+
+    async function action(button, fn) {
+        button.disabled = true;
+        $('status').className = '';
+        $('status').textContent = '正在执行链路…';
+        try {
+            await fn();
+            $('status').textContent = '完成';
+        } catch (error) {
+            $('status').className = 'error';
+            $('status').textContent = error.message;
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function docs() {
+        $('docs').textContent = JSON.stringify(await api('/api/documents?datasetId=' + encodeURIComponent($('dataset').value)), null, 2);
+    }
+
+    function input() {
+        return {
+            datasetId: $('dataset').value,
+            docId: $('scope').value || null,
+            question: $('question').value,
+            mode: $('mode').value,
+            topK: num('topk'),
+            candidateK: num('candidates'),
+            vectorWeight: num('weight'),
+            threshold: num('threshold')
+        };
+    }
+
+    function render(chunks) {
+        $('results').replaceChildren();
+        if (!chunks.length) {
+            $('results').textContent = '没有超过阈值的结果。';
+            return;
+        }
+        chunks.forEach((chunk, index) => {
+            const card = document.createElement('div');
+            card.className = 'hit';
+            const heading = document.createElement('strong');
+            heading.textContent = `${index + 1}. ${chunk.docnm_kwd || ''}`;
+            const scores = document.createElement('div');
+            scores.className = 'scores';
+            scores.textContent = `similarity ${Number(chunk.similarity || 0).toFixed(4)} · term ${Number(chunk.term_similarity || 0).toFixed(4)} · vector ${Number(chunk.vector_similarity || 0).toFixed(4)}`;
+            const text = document.createElement('div');
+            text.className = 'chunk';
+            text.textContent = chunk.content_with_weight || '';
+            card.append(heading, scores, text);
+            $('results').append(card);
+        });
+    }
+
+    $('file').onchange = async () => {
+        const file = $('file').files[0];
+        if (file) {
+            $('text').value = await file.text();
+            $('title').value = file.name;
+            $('doc').value = file.name;
+            $('format').value = /\.md$/i.test(file.name) ? 'md' : 'txt';
+        }
+    };
+    $('index').onclick = () => action($('index'), async () => {
+        const data = await post('/api/documents', {
+            datasetId: $('dataset').value,
+            docId: $('doc').value,
+            title: $('title').value,
+            text: $('text').value,
+            fileType: $('format').value,
+            chunkTokenSize: num('size'),
+            overlapPercent: num('overlap'),
+            filenameEmbeddingWeight: num('titleWeight'),
+            childrenDelimiters: $('children').value ? [$('children').value] : []
+        });
+        $('indexed').textContent = JSON.stringify(data, null, 2);
+        $('indexed').parentElement.open = true;
+        await docs();
+    });
+    $('refresh').onclick = () => action($('refresh'), docs);
+    $('search').onclick = () => action($('search'), async () => {
+        const result = await post('/api/retrieve', input());
+        render(result.chunks);
+        $('trace').textContent = JSON.stringify(result.trace, null, 2);
+        $('trace').parentElement.open = true;
+    });
+    $('ask').onclick = () => action($('ask'), async () => {
+        const question = $('question').value;
+        const messages = $('history').checked ? [...history, {role: 'user', content: question}] : [{
+            role: 'user',
+            content: question
+        }];
+        const result = await post('/api/chat', {
+            ...input(),
+            messages,
+            answerMode: $('answerMode').value,
+            quote: $('quote').checked,
+            refineMultiturn: true
+        });
+        $('answer').textContent = result.answer;
+        history = [...messages, {role: 'assistant', content: result.answer}];
+        $('references').replaceChildren();
+        (result.reference.chunks || []).forEach((chunk, index) => {
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = `[ID:${index}] ${chunk.document_name || chunk.docnm_kwd || ''}`;
+            const text = document.createElement('pre');
+            text.textContent = chunk.content || chunk.content_with_weight || '';
+            details.append(summary, text);
+            $('references').append(details);
+        });
+        $('trace').textContent = JSON.stringify(result.retrievalTrace, null, 2);
+        $('prompt').textContent = JSON.stringify({
+            query: result.query,
+            model: result.model,
+            answerStatus: result.answerStatus,
+            usage: result.usage,
+            warnings: result.warnings,
+            prompt: result.prompt
+        }, null, 2);
+    });
+    api('/api/health').then(data => $('health').textContent = `Elasticsearch · 本地 ${data.chatModel}`).catch(() => $('health').textContent = '服务连接失败');
+    docs().catch(() => {
+    });
+</script>
+</html>

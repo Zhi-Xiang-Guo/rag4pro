@@ -1,0 +1,617 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "eval-controlled-qa-v1",
+  "labelStatus": "developer-authored synthetic regression fixtures; not human-reviewed production QA",
+  "documents": [
+    {
+      "docId": "refund-v2",
+      "title": "海星退款 v2.txt",
+      "text": "海星退款政策 v2：退款审核通过后，款项在 7 个工作日内原路退回。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "refund",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "refund-v1",
+      "title": "海星退款 v1 已废止.txt",
+      "text": "海星退款旧版 v1：退款审核通过后，款项在 15 个工作日内原路退回。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "refund",
+        "version": "v1"
+      }
+    },
+    {
+      "docId": "settle-v2",
+      "title": "北极结算 v2.txt",
+      "text": "北极结算政策 v2：商户结算周期为 T+2 工作日。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "settlement",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "settle-v1",
+      "title": "北极结算 v1 已废止.txt",
+      "text": "北极结算旧版 v1：商户结算周期为 T+5 工作日。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "settlement",
+        "version": "v1"
+      }
+    },
+    {
+      "docId": "retry-v2",
+      "title": "猎户重试 v2.txt",
+      "text": "猎户服务 v2：支付失败最多重试 3 次，每次间隔 60 秒。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "retry",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "retention-v2",
+      "title": "织女日志 v2.txt",
+      "text": "织女服务 v2：诊断日志保留 30 天，超过保留期自动删除。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "retention",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "limit-v2",
+      "title": "银河限流 v2.txt",
+      "text": "银河网关 v2：单个租户每秒最多请求 20 次，超过限制返回 HTTP 429。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "limit",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "approval-v2",
+      "title": "天琴审批 v2.txt",
+      "text": "天琴服务 v2：金额超过 5000 元的退款需要主管审批。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "approval",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "backup-v2",
+      "title": "天鹰备份 v2.txt",
+      "text": "天鹰服务 v2：数据库每天凌晨 2 点备份一次，备份保留 14 天。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "backup",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "timeout-v2",
+      "title": "天鹅超时 v2.txt",
+      "text": "天鹅服务 v2：外部查询超时时间为 8 秒，超时后返回可重试错误。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "timeout",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "refund-other",
+      "title": "海豚退款.txt",
+      "text": "海豚产品退款到账需要 2 个自然日。该产品与海星产品不同。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "other",
+        "version": "v2"
+      }
+    },
+    {
+      "docId": "noise",
+      "title": "值班通讯录.txt",
+      "text": "值班操作需要记录工单编号和处理时间，问题通过服务台提交。",
+      "language": "Chinese",
+      "metadata": {
+        "service": "directory",
+        "version": "v2"
+      }
+    }
+  ],
+  "queries": [
+    {
+      "id": "refund-direct",
+      "split": "dev",
+      "category": "unscoped-fact",
+      "question": "海星 v2 退款审核通过后多久到账？",
+      "docId": "refund-v2",
+      "evidence": "海星退款政策 v2：退款审核通过后，款项在 7 个工作日内原路退回。",
+      "answerPattern": "(?:7|七)\\s*个?工作日"
+    },
+    {
+      "id": "refund-scope",
+      "split": "dev",
+      "category": "metadata-scope",
+      "question": "海星 退款审核通过后多久到账？",
+      "docId": "refund-v2",
+      "metadataFilter": {
+        "method": "manual",
+        "manual": [
+          {
+            "key": "service",
+            "op": "=",
+            "value": "refund"
+          },
+          {
+            "key": "version",
+            "op": "=",
+            "value": "v2"
+          }
+        ],
+        "logic": "and"
+      },
+      "evidence": "海星退款政策 v2：退款审核通过后，款项在 7 个工作日内原路退回。",
+      "answerPattern": "(?:7|七)\\s*个?工作日"
+    },
+    {
+      "id": "refund-multiturn",
+      "split": "dev",
+      "category": "multiturn-scoped",
+      "question": "海星 v2 退款审核通过后多久到账？",
+      "docId": "refund-v2",
+      "evidence": "海星退款政策 v2：退款审核通过后，款项在 7 个工作日内原路退回。",
+      "answerPattern": "(?:7|七)\\s*个?工作日",
+      "messages": [
+        {
+          "role": "user",
+          "content": "海星 v2 退款审核通过后多久到账？"
+        },
+        {
+          "role": "assistant",
+          "content": "请说明需要查询的政策。"
+        },
+        {
+          "role": "user",
+          "content": "我指的是 v2，请回答刚才的问题。"
+        }
+      ]
+    },
+    {
+      "id": "settle-direct",
+      "split": "dev",
+      "category": "unscoped-fact",
+      "question": "北极 v2 的商户结算周期是多少？",
+      "docId": "settle-v2",
+      "evidence": "北极结算政策 v2：商户结算周期为 T+2 工作日。",
+      "answerPattern": "T\\s*\\+\\s*2|(?:2|两|二)\\s*个?工作日"
+    },
+    {
+      "id": "settle-scope",
+      "split": "dev",
+      "category": "metadata-scope",
+      "question": "北极 的商户结算周期是多少？",
+      "docId": "settle-v2",
+      "metadataFilter": {
+        "method": "manual",
+        "manual": [
+          {
+            "key": "service",
+            "op": "=",
+            "value": "settlement"
+          },
+          {
+            "key": "version",
+            "op": "=",
+            "value": "v2"
+          }
+        ],
+        "logic": "and"
+      },
+      "evidence": "北极结算政策 v2：商户结算周期为 T+2 工作日。",
+      "answerPattern": "T\\s*\\+\\s*2|(?:2|两|二)\\s*个?工作日"
+    },
+    {
+      "id": "settle-multiturn",
+      "split": "dev",
+      "category": "multiturn-scoped",
+      "question": "北极 v2 的商户结算周期是多少？",
+      "docId": "settle-v2",
+      "evidence": "北极结算政策 v2：商户结算周期为 T+2 工作日。",
+      "answerPattern": "T\\s*\\+\\s*2|(?:2|两|二)\\s*个?工作日",
+      "messages": [
+        {
+          "role": "user",
+          "content": "北极 v2 的商户结算周期是多少？"
+        },
+        {
+          "role": "assistant",
+          "content": "请说明需要查询的政策。"
+        },
+        {
+          "role": "user",
+          "content": "我指的是 v2，请回答刚才的问题。"
+        }
+      ]
+    },
+    {
+      "id": "retry-direct",
+      "split": "dev",
+      "category": "unscoped-fact",
+      "question": "猎户 v2 支付失败最多重试几次？",
+      "docId": "retry-v2",
+      "evidence": "猎户服务 v2：支付失败最多重试 3 次，每次间隔 60 秒。",
+      "answerPattern": "(?:3|三)\\s*次"
+    },
+    {
+      "id": "retry-scope",
+      "split": "dev",
+      "category": "metadata-scope",
+      "question": "猎户 支付失败最多重试几次？",
+      "docId": "retry-v2",
+      "metadataFilter": {
+        "method": "manual",
+        "manual": [
+          {
+            "key": "service",
+            "op": "=",
+            "value": "retry"
+          },
+          {
+            "key": "version",
+            "op": "=",
+            "value": "v2"
+          }
+        ],
+        "logic": "and"
+      },
+      "evidence": "猎户服务 v2：支付失败最多重试 3 次，每次间隔 60 秒。",
+      "answerPattern": "(?:3|三)\\s*次"
+    },
+    {
+      "id": "retry-multiturn",
+      "split": "dev",
+      "category": "multiturn-scoped",
+      "question": "猎户 v2 支付失败最多重试几次？",
+      "docId": "retry-v2",
+      "evidence": "猎户服务 v2：支付失败最多重试 3 次，每次间隔 60 秒。",
+      "answerPattern": "(?:3|三)\\s*次",
+      "messages": [
+        {
+          "role": "user",
+          "content": "猎户 v2 支付失败最多重试几次？"
+        },
+        {
+          "role": "assistant",
+          "content": "请说明需要查询的政策。"
+        },
+        {
+          "role": "user",
+          "content": "我指的是 v2，请回答刚才的问题。"
+        }
+      ]
+    },
+    {
+      "id": "retention-direct",
+      "split": "test",
+      "category": "unscoped-fact",
+      "question": "织女 v2 的诊断日志保留多久？",
+      "docId": "retention-v2",
+      "evidence": "织女服务 v2：诊断日志保留 30 天，超过保留期自动删除。",
+      "answerPattern": "(?:30|三十)\\s*天"
+    },
+    {
+      "id": "retention-scope",
+      "split": "test",
+      "category": "metadata-scope",
+      "question": "织女 的诊断日志保留多久？",
+      "docId": "retention-v2",
+      "metadataFilter": {
+        "method": "manual",
+        "manual": [
+          {
+            "key": "service",
+            "op": "=",
+            "value": "retention"
+          },
+          {
+            "key": "version",
+            "op": "=",
+            "value": "v2"
+          }
+        ],
+        "logic": "and"
+      },
+      "evidence": "织女服务 v2：诊断日志保留 30 天，超过保留期自动删除。",
+      "answerPattern": "(?:30|三十)\\s*天"
+    },
+    {
+      "id": "retention-multiturn",
+      "split": "test",
+      "category": "multiturn-scoped",
+      "question": "织女 v2 的诊断日志保留多久？",
+      "docId": "retention-v2",
+      "evidence": "织女服务 v2：诊断日志保留 30 天，超过保留期自动删除。",
+      "answerPattern": "(?:30|三十)\\s*天",
+      "messages": [
+        {
+          "role": "user",
+          "content": "织女 v2 的诊断日志保留多久？"
+        },
+        {
+          "role": "assistant",
+          "content": "请说明需要查询的政策。"
+        },
+        {
+          "role": "user",
+          "content": "我指的是 v2，请回答刚才的问题。"
+        }
+      ]
+    },
+    {
+      "id": "limit-direct",
+      "split": "test",
+      "category": "unscoped-fact",
+      "question": "银河 v2 单个租户每秒最多请求多少次？",
+      "docId": "limit-v2",
+      "evidence": "银河网关 v2：单个租户每秒最多请求 20 次，超过限制返回 HTTP 429。",
+      "answerPattern": "(?:20|二十)\\s*次"
+    },
+    {
+      "id": "limit-scope",
+      "split": "test",
+      "category": "metadata-scope",
+      "question": "银河 单个租户每秒最多请求多少次？",
+      "docId": "limit-v2",
+      "metadataFilter": {
+        "method": "manual",
+        "manual": [
+          {
+            "key": "service",
+            "op": "=",
+            "value": "limit"
+          },
+          {
+            "key": "version",
+            "op": "=",
+            "value": "v2"
+          }
+        ],
+        "logic": "and"
+      },
+      "evidence": "银河网关 v2：单个租户每秒最多请求 20 次，超过限制返回 HTTP 429。",
+      "answerPattern": "(?:20|二十)\\s*次"
+    },
+    {
+      "id": "limit-multiturn",
+      "split": "test",
+      "category": "multiturn-scoped",
+      "question": "银河 v2 单个租户每秒最多请求多少次？",
+      "docId": "limit-v2",
+      "evidence": "银河网关 v2：单个租户每秒最多请求 20 次，超过限制返回 HTTP 429。",
+      "answerPattern": "(?:20|二十)\\s*次",
+      "messages": [
+        {
+          "role": "user",
+          "content": "银河 v2 单个租户每秒最多请求多少次？"
+        },
+        {
+          "role": "assistant",
+          "content": "请说明需要查询的政策。"
+        },
+        {
+          "role": "user",
+          "content": "我指的是 v2，请回答刚才的问题。"
+        }
+      ]
+    },
+    {
+      "id": "approval-direct",
+      "split": "test",
+      "category": "unscoped-fact",
+      "question": "天琴 v2 退款超过多少元需要主管审批？",
+      "docId": "approval-v2",
+      "evidence": "天琴服务 v2：金额超过 5000 元的退款需要主管审批。",
+      "answerPattern": "5000|五千"
+    },
+    {
+      "id": "approval-scope",
+      "split": "test",
+      "category": "metadata-scope",
+      "question": "天琴 退款超过多少元需要主管审批？",
+      "docId": "approval-v2",
+      "metadataFilter": {
+        "method": "manual",
+        "manual": [
+          {
+            "key": "service",
+            "op": "=",
+            "value": "approval"
+          },
+          {
+            "key": "version",
+            "op": "=",
+            "value": "v2"
+          }
+        ],
+        "logic": "and"
+      },
+      "evidence": "天琴服务 v2：金额超过 5000 元的退款需要主管审批。",
+      "answerPattern": "5000|五千"
+    },
+    {
+      "id": "approval-multiturn",
+      "split": "test",
+      "category": "multiturn-scoped",
+      "question": "天琴 v2 退款超过多少元需要主管审批？",
+      "docId": "approval-v2",
+      "evidence": "天琴服务 v2：金额超过 5000 元的退款需要主管审批。",
+      "answerPattern": "5000|五千",
+      "messages": [
+        {
+          "role": "user",
+          "content": "天琴 v2 退款超过多少元需要主管审批？"
+        },
+        {
+          "role": "assistant",
+          "content": "请说明需要查询的政策。"
+        },
+        {
+          "role": "user",
+          "content": "我指的是 v2，请回答刚才的问题。"
+        }
+      ]
+    },
+    {
+      "id": "backup-direct",
+      "split": "test",
+      "category": "unscoped-fact",
+      "question": "天鹰 v2 的数据库备份保留多久？",
+      "docId": "backup-v2",
+      "evidence": "天鹰服务 v2：数据库每天凌晨 2 点备份一次，备份保留 14 天。",
+      "answerPattern": "(?:14|十四)\\s*天"
+    },
+    {
+      "id": "backup-scope",
+      "split": "test",
+      "category": "metadata-scope",
+      "question": "天鹰 的数据库备份保留多久？",
+      "docId": "backup-v2",
+      "metadataFilter": {
+        "method": "manual",
+        "manual": [
+          {
+            "key": "service",
+            "op": "=",
+            "value": "backup"
+          },
+          {
+            "key": "version",
+            "op": "=",
+            "value": "v2"
+          }
+        ],
+        "logic": "and"
+      },
+      "evidence": "天鹰服务 v2：数据库每天凌晨 2 点备份一次，备份保留 14 天。",
+      "answerPattern": "(?:14|十四)\\s*天"
+    },
+    {
+      "id": "backup-multiturn",
+      "split": "test",
+      "category": "multiturn-scoped",
+      "question": "天鹰 v2 的数据库备份保留多久？",
+      "docId": "backup-v2",
+      "evidence": "天鹰服务 v2：数据库每天凌晨 2 点备份一次，备份保留 14 天。",
+      "answerPattern": "(?:14|十四)\\s*天",
+      "messages": [
+        {
+          "role": "user",
+          "content": "天鹰 v2 的数据库备份保留多久？"
+        },
+        {
+          "role": "assistant",
+          "content": "请说明需要查询的政策。"
+        },
+        {
+          "role": "user",
+          "content": "我指的是 v2，请回答刚才的问题。"
+        }
+      ]
+    },
+    {
+      "id": "timeout-direct",
+      "split": "test",
+      "category": "unscoped-fact",
+      "question": "天鹅 v2 外部查询超时时间为多少秒？",
+      "docId": "timeout-v2",
+      "evidence": "天鹅服务 v2：外部查询超时时间为 8 秒，超时后返回可重试错误。",
+      "answerPattern": "(?:8|八)\\s*秒"
+    },
+    {
+      "id": "timeout-scope",
+      "split": "test",
+      "category": "metadata-scope",
+      "question": "天鹅 外部查询超时时间为多少秒？",
+      "docId": "timeout-v2",
+      "metadataFilter": {
+        "method": "manual",
+        "manual": [
+          {
+            "key": "service",
+            "op": "=",
+            "value": "timeout"
+          },
+          {
+            "key": "version",
+            "op": "=",
+            "value": "v2"
+          }
+        ],
+        "logic": "and"
+      },
+      "evidence": "天鹅服务 v2：外部查询超时时间为 8 秒，超时后返回可重试错误。",
+      "answerPattern": "(?:8|八)\\s*秒"
+    },
+    {
+      "id": "timeout-multiturn",
+      "split": "test",
+      "category": "multiturn-scoped",
+      "question": "天鹅 v2 外部查询超时时间为多少秒？",
+      "docId": "timeout-v2",
+      "evidence": "天鹅服务 v2：外部查询超时时间为 8 秒，超时后返回可重试错误。",
+      "answerPattern": "(?:8|八)\\s*秒",
+      "messages": [
+        {
+          "role": "user",
+          "content": "天鹅 v2 外部查询超时时间为多少秒？"
+        },
+        {
+          "role": "assistant",
+          "content": "请说明需要查询的政策。"
+        },
+        {
+          "role": "user",
+          "content": "我指的是 v2，请回答刚才的问题。"
+        }
+      ]
+    },
+    {
+      "id": "unknown-0",
+      "split": "dev",
+      "category": "unsupported",
+      "question": "银河 v2 提供哪家保险公司的保险？",
+      "unanswerable": true,
+      "answerPattern": "资料不足|无法|未提[供及]|没有.*信息|不清楚|not found|not.*(?:provided|available|contain)|Sorry"
+    },
+    {
+      "id": "unknown-1",
+      "split": "test",
+      "category": "unsupported",
+      "question": "天鹰 v2 的管理员密码是多少？",
+      "unanswerable": true,
+      "answerPattern": "资料不足|无法|未提[供及]|没有.*信息|不清楚|not found|not.*(?:provided|available|contain)|Sorry"
+    },
+    {
+      "id": "unknown-2",
+      "split": "test",
+      "category": "unsupported",
+      "question": "织女 v2 的 CEO 姓名是什么？",
+      "unanswerable": true,
+      "answerPattern": "资料不足|无法|未提[供及]|没有.*信息|不清楚|not found|not.*(?:provided|available|contain)|Sorry"
+    },
+    {
+      "id": "unknown-3",
+      "split": "test",
+      "category": "unsupported",
+      "question": "天鹅 v2 的全年收入是多少？",
+      "unanswerable": true,
+      "answerPattern": "资料不足|无法|未提[供及]|没有.*信息|不清楚|not found|not.*(?:provided|available|contain)|Sorry"
+    }
+  ]
+}
