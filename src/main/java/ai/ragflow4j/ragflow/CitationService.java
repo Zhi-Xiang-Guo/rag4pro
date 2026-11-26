@@ -318,6 +318,9 @@ public final class CitationService {
                         "document_metadata")) {
             result.put(key, chunk.get(key));
         }
+        for (String key : List.of("section_kwd", "context_level_kwd", "chunk_strategy_kwd", "score_type",
+                "mom_id", "section_id"))
+            if (chunk.containsKey(key)) result.put(key, chunk.get(key));
         return result;
     }
 }
