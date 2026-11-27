@@ -1,0 +1,2 @@
+# Unmodified RAGFlow lexer and bundled dependencies (see native/UPSTREAM.md).
+native/upstream/** linguist-vendored
